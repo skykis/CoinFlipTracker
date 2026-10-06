@@ -51,6 +51,35 @@ class UITest(unittest.TestCase):
         self.app._buttons["coin_win"][1].invoke()
         self.assertEqual(self.app.save_btn.cget("state"), "disabled")
 
+    def test_choice_buttons_still_work_after_a_save(self):
+        # save() 重置选择时必须原地修改字典：按钮闭包捕获的是同一个 dict 对象
+        self.app._buttons["coin_win"][1].invoke()
+        self.app._buttons["went_first"][0].invoke()
+        self.app._buttons["duel_win"][1].invoke()
+        self.app.save()
+        self.app._buttons["coin_win"][1].invoke()
+        self.app._buttons["went_first"][0].invoke()
+        self.app._buttons["duel_win"][1].invoke()
+        self.assertEqual(
+            self.app.selections, {"coin_win": 1, "went_first": 0, "duel_win": 1}
+        )
+        self.assertEqual(self.app.save_btn.cget("state"), "normal")
+        self.app.save()
+        self.assertEqual(len(self.storage.get_all()), 2)
+
+    def test_edit_panel_choice_buttons_work_after_cancel(self):
+        # clear_edit() 同样不能替换 edit_selections 字典 —— 编辑按钮的闭包持有它
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.clear_edit()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app._edit_buttons["coin_win"][0].invoke()
+        self.app.update_selected()
+        self.assertEqual(self.storage.get_all()[0]["coin_win"], 0)
+
     def test_note_field_is_labelled(self):
         self.assertIn("备注", self.app.note_label.cget("text"))
 

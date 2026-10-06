@@ -299,7 +299,9 @@ class TrackerApp:
             self.show_message(f"数据库操作失败：{e}")
             return None
         self.note_entry.delete(0, "end")
-        self.selections = {k: None for k in self.selections}
+        # 原地重置 —— 按钮闭包捕获的是同一个 dict 对象，替换对象会让点击失效
+        for key in self.selections:
+            self.selections[key] = None
         for buttons in self._buttons.values():
             for btn in buttons.values():
                 btn.config(bg=self._default_bg)
@@ -352,7 +354,8 @@ class TrackerApp:
         self.selected_id = None
         # 不清除表格选中，重新点击同一行不会触发 <<TreeviewSelect>>，面板无法重开
         self.record_table.selection_set()
-        self.edit_selections = {k: None for k in ("coin_win", "went_first", "duel_win")}
+        for key in self.edit_selections:
+            self.edit_selections[key] = None
         for buttons in self._edit_buttons.values():
             for btn in buttons.values():
                 btn.config(bg=self._default_bg)
