@@ -86,6 +86,13 @@ class UITest(unittest.TestCase):
             for btn in buttons.values():
                 self.assertEqual(btn.cget("bg"), default_bg)
 
+    def test_chart_tabs_include_per_duel_chart(self):
+        self.assertEqual(
+            [self.app.notebook.tab(i, "text") for i in range(3)],
+            ["硬币胜率趋势", "每日对数", "逐局趋势"],
+        )
+        self.assertEqual(len(self.app.canvases), 3)
+
     def test_matplotlib_missing_shows_fallback_tab(self):
         original = ui.MATPLOTLIB_OK
         ui.MATPLOTLIB_OK = False

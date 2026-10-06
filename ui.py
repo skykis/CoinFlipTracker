@@ -102,7 +102,7 @@ class TrackerApp:
 
         if MATPLOTLIB_OK:
             self.canvases = []
-            for title in ("硬币胜率趋势", "每日对数"):
+            for title in ("硬币胜率趋势", "每日对数", "逐局趋势"):
                 tab = tk.Frame(self.notebook)
                 self.notebook.add(tab, text=title)
                 canvas = FigureCanvasTkAgg(None, master=tab)
@@ -167,7 +167,7 @@ class TrackerApp:
             text=format_stats(compute_stats(all_records), "累计", all_records)
         )
         if MATPLOTLIB_OK:
-            figures = build_figures(self.storage.get_daily_counts())
+            figures = build_figures(self.storage.get_daily_counts(), all_records)
             for canvas, fig in zip(self.canvases, figures):
                 canvas.figure = fig
                 canvas.draw()
