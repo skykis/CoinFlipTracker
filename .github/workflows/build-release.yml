@@ -1,0 +1,54 @@
+name: Build Windows release
+
+# 打 tag（v1.0.0 之类）自动发布；也可以在 Actions 页面手动运行
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v1.0.0"
+        default: "v1.0.0"
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build single-file exe
+        run: |
+          python -m PyInstaller --onefile --noconsole --name CoinFlipTracker `
+            --exclude-module PyQt5 --exclude-module PySide6 --exclude-module wx `
+            main.py
+
+      # 打包成功不等于能启动：跑一下，若进程立刻退出说明 import 失败
+      - name: Smoke test
+        run: |
+          $proc = Start-Process -FilePath "dist\CoinFlipTracker.exe" -PassThru
+          Start-Sleep -Seconds 8
+          if ($proc.HasExited) {
+            Write-Error "CoinFlipTracker.exe exited immediately (code $($proc.ExitCode))"
+            exit 1
+          }
+          Stop-Process -Id $proc.Id -Force
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: dist/CoinFlipTracker.exe
+          body: |
+            Windows 单文件版本，不需要安装 Python。
+            双击 `CoinFlipTracker.exe` 运行，数据库会自动创建在 exe 同目录的 `data/duels.db`。

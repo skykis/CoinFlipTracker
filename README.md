@@ -50,3 +50,27 @@ python main.py
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## 打包成 exe 并发布
+
+仓库自带 `.github/workflows/build-release.yml`：GitHub 的 Windows runner 用 PyInstaller 打包成单个
+`CoinFlipTracker.exe`，跑一次冒烟测试（启动 8 秒不崩溃），然后自动创建 Release 并上传 exe。
+
+触发方式二选一：
+
+```bash
+# 1) 打 tag 自动发布
+git tag v1.0.0
+git push origin v1.0.0
+
+# 2) 在 Actions → "Build Windows release" → Run workflow 手动运行，填 tag 名
+```
+
+本地手动打包（结果在 `dist/`）：
+
+```bash
+pip install pyinstaller
+python -m PyInstaller --onefile --noconsole --name CoinFlipTracker main.py
+```
+
+exe 双击即可运行，数据库写在 exe 同目录的 `data/duels.db`；`--db` 仍可指定其他路径。
