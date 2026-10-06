@@ -39,6 +39,18 @@ class UITest(unittest.TestCase):
         self.app.save_btn.invoke()
         self.assertEqual(len(self.storage.get_all()), 1)
 
+    def test_clicking_choice_buttons_enables_save(self):
+        # 鼠标点击走 _choose，键盘快捷键走 select —— 两条路径都要启用保存按钮
+        self.app._buttons["coin_win"][1].invoke()
+        self.app._buttons["went_first"][0].invoke()
+        self.app._buttons["duel_win"][1].invoke()
+        self.assertTrue(self.app.can_save())
+        self.assertEqual(self.app.save_btn.cget("state"), "normal")
+
+    def test_save_stays_disabled_until_all_three_are_chosen(self):
+        self.app._buttons["coin_win"][1].invoke()
+        self.assertEqual(self.app.save_btn.cget("state"), "disabled")
+
     def test_note_field_is_labelled(self):
         self.assertIn("备注", self.app.note_label.cget("text"))
 

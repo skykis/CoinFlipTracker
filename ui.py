@@ -90,7 +90,8 @@ class TrackerApp:
 
         for field, label, choices in OPTIONS:
             self._buttons[field] = self._make_choice_group(
-                input_frame, field, label, choices, self.selections
+                input_frame, field, label, choices, self.selections,
+                on_change=self._update_save_state,
             )
 
         date_group = tk.Frame(input_frame)
@@ -209,7 +210,7 @@ class TrackerApp:
             except tk.TclError:
                 pass  # window was already closed by the user
 
-    def _make_choice_group(self, parent, field, label, choices, store):
+    def _make_choice_group(self, parent, field, label, choices, store, on_change=None):
         group = tk.Frame(parent)
         group.pack(side="left", padx=8)
         tk.Label(group, text=label).pack()
@@ -217,20 +218,24 @@ class TrackerApp:
         for text, value in choices:
             btn = tk.Button(
                 group, text=text,
-                command=lambda f=field, v=value, s=store, b=buttons: self._choose(f, v, s, b),
+                command=lambda f=field, v=value, s=store, b=buttons, c=on_change: self._choose(f, v, s, b, c),
             )
             btn.pack(side="left")
             buttons[value] = btn
         return buttons
 
-    def _choose(self, field, value, store, buttons):
+    def _choose(self, field, value, store, buttons, on_change=None):
         store[field] = value
         for v, btn in buttons.items():
             btn.config(bg=HIGHLIGHT_BG if v == value else self._default_bg)
+        if on_change is not None:
+            on_change()
+
+    def _update_save_state(self) -> None:
+        self.save_btn.config(state="normal" if self.can_save() else "disabled")
 
     def select(self, field: str, value: int) -> None:
-        self._choose(field, value, self.selections, self._buttons[field])
-        self.save_btn.config(state="normal" if self.can_save() else "disabled")
+        self._choose(field, value, self.selections, self._buttons[field], self._update_save_state)
 
     def can_save(self) -> bool:
         return all(v is not None for v in self.selections.values())
