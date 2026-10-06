@@ -614,6 +614,66 @@ class UITest(unittest.TestCase):
         self.assertEqual(int(date["row"]), 3)
         self.assertEqual(int(self.app.cancel_btn.grid_info()["column"]), 5)
 
+    def test_choice_buttons_fill_the_entry_card(self):
+        # 卡片被窗口撑宽，若列宽不随之增大，按钮会挤在左侧、卡片右侧留白
+        self.app.root.update()
+        card = self.app.save_btn.master
+        last = self.app._buttons["duel_win"][0]  # 「负」按钮，位于第 5 列
+        self.assertGreaterEqual(
+            last.winfo_x() + last.winfo_width(),
+            card.winfo_width() - 12,
+            f"buttons end at {last.winfo_x() + last.winfo_width()} px of a {card.winfo_width()} px card",
+        )
+
+    def test_edit_panel_buttons_fill_the_panel(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        # 未选中的标签页不会被映射，winfo_width 仍是 1，必须先切到「记录列表」
+        self.app.notebook.select(3)
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.root.update()
+        panel = self.app.cancel_btn.master
+        last = self.app._edit_buttons["duel_win"][0]
+        self.assertGreaterEqual(
+            last.winfo_x() + last.winfo_width(),
+            panel.winfo_width() - 12,
+            f"edit buttons end at {last.winfo_x() + last.winfo_width()} px of a {panel.winfo_width()} px panel",
+        )
+
+    def test_metric_columns_span_the_stats_card(self):
+        self.app.root.update()
+        card = self.app.today_values["total"].master
+        last_metric = self.app.today_details["duel_streak"]
+        self.assertGreaterEqual(
+            last_metric.winfo_x(),
+            card.winfo_width() * 5 // 6,
+            f"last metric column starts at {last_metric.winfo_x()} px of a {card.winfo_width()} px card",
+        )
+
+    def test_undo_button_lines_up_with_the_last_choice_button(self):
+        self.app.root.update()
+        choice = self.app._buttons["duel_win"][0]
+        undo = self.app.undo_btn
+        self.assertEqual(choice.winfo_x(), undo.winfo_x())
+        self.assertEqual(
+            choice.winfo_x() + choice.winfo_width(),
+            undo.winfo_x() + undo.winfo_width(),
+        )
+
+    def test_record_table_columns_span_the_list_tab(self):
+        # 列宽总和远小于标签页宽度时，列表右侧会留一大块空白
+        self.app.root.update()
+        self.app.notebook.select(3)
+        self.app.root.update()
+        tab = self.app.record_table.master
+        total = sum(width for _, _, width in ui.COLUMNS)
+        self.assertGreaterEqual(
+            total,
+            tab.winfo_width() - 60,
+            f"table columns total {total} px in a {tab.winfo_width()} px tab",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

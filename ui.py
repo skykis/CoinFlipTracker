@@ -49,13 +49,14 @@ CHARTS = (
     ("逐局趋势", draw_per_duel),
 )
 
+# 列宽总和接近标签页宽度，列表右侧不会留大片空白（窗口宽度由它决定）
 COLUMNS = (
-    ("date", "日期", 90),
-    ("time", "时间", 60),
-    ("coin", "硬币", 60),
-    ("first", "先后手", 70),
-    ("duel", "决斗", 60),
-    ("note", "备注", 160),
+    ("date", "日期", 100),
+    ("time", "时间", 70),
+    ("coin", "硬币", 70),
+    ("first", "先后手", 80),
+    ("duel", "决斗", 70),
+    ("note", "备注", 500),
 )
 
 # 录入区与编辑面板都只用 0..5 这六个等宽列：第二行放备注/日期/动作按钮，
@@ -132,9 +133,10 @@ class TrackerApp:
 
         entry = ttk.Frame(root_frame, style="Card.TFrame")
         entry.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        # uniform 让六个按钮列等宽 —— 行列对齐靠它，而不是逐个写死宽度
+        # uniform 让六个按钮列等宽，weight 让它们平分卡片多出来的空间：
+        # 卡片被窗口撑宽时按钮不会挤在左侧，第二行的输入框也正好对齐到列
         for col in range(BUTTON_COLS):
-            entry.grid_columnconfigure(col, uniform="btn", minsize=78)
+            entry.grid_columnconfigure(col, uniform="btn", weight=1)
 
         col = 0
         for field, label, choices in OPTIONS:
@@ -158,7 +160,7 @@ class TrackerApp:
             entry, text="撤销上一条", style="Ghost.TButton", command=self.undo_last
         )
         self.undo_btn.grid(
-            row=2, column=UNDO_COL, rowspan=2, sticky="ew", padx=(0, 10), pady=(0, 8)
+            row=2, column=UNDO_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
         )
 
         self.note_entry = ttk.Entry(entry, width=22)
@@ -169,8 +171,9 @@ class TrackerApp:
 
         stats = ttk.Frame(root_frame, style="Card.TFrame")
         stats.grid(row=2, column=0, sticky="ew", pady=(8, 0))
-        for i in range(len(METRICS)):
-            stats.grid_columnconfigure(i, uniform="metric", minsize=100)
+        # 指标卡片同样是 6 列，列宽与按钮列一致，两块卡片边缘对齐
+        for col in range(len(METRICS)):
+            stats.grid_columnconfigure(col, uniform="metric", weight=1)
         self.today_values, self.today_details = self._make_stats_section(stats, 0, "当天")
         ttk.Separator(stats, orient="horizontal").grid(
             row=4, column=0, columnspan=len(METRICS), sticky="ew", padx=14, pady=4
@@ -241,7 +244,7 @@ class TrackerApp:
         edit_frame = ttk.Frame(self.list_tab, style="Card.TFrame")
         edit_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=8)
         for col in range(BUTTON_COLS):
-            edit_frame.grid_columnconfigure(col, uniform="editbtn", minsize=78)
+            edit_frame.grid_columnconfigure(col, uniform="editbtn", weight=1)
 
         self.edit_selections = {"coin_win": None, "went_first": None, "duel_win": None}
         self._edit_buttons = {}
@@ -276,7 +279,7 @@ class TrackerApp:
             edit_frame, text="取消", style="Ghost.TButton", command=self.clear_edit
         )
         self.cancel_btn.grid(
-            row=2, column=EDIT_CANCEL_COL, rowspan=2, sticky="ew", padx=(0, 10), pady=(0, 8)
+            row=2, column=EDIT_CANCEL_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
         )
         self.edit_note = ttk.Entry(edit_frame, width=22)
         self.edit_note.grid(
