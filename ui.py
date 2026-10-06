@@ -81,9 +81,13 @@ class TrackerApp:
                 buttons[value] = btn
             self._buttons[field] = buttons
 
+        self.note_label = tk.Label(input_frame, text="备注(可选)")
+        self.note_label.pack(side="right")
         self.note_entry = tk.Entry(input_frame, width=20)
         self.note_entry.pack(side="right")
-        self.save_btn = tk.Button(input_frame, text="保存 (Enter)", state="disabled")
+        self.save_btn = tk.Button(
+            input_frame, text="保存 (Enter)", state="disabled", command=self.save
+        )
         self.save_btn.pack(side="right")
 
         stats_frame = tk.Frame(self.root)
@@ -143,6 +147,7 @@ class TrackerApp:
             self.selections["duel_win"],
             note=self.note_entry.get().strip() or None,
         )
+        self.note_entry.delete(0, "end")
         self.selections = {k: None for k in self.selections}
         for buttons in self._buttons.values():
             for btn in buttons.values():

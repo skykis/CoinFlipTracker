@@ -30,6 +30,25 @@ class UITest(unittest.TestCase):
         self.assertIsNone(self.app.save())
         self.assertEqual(len(self.storage.get_all()), 0)
 
+    def test_save_button_click_saves_record(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+        self.assertTrue(self.app.save_btn.cget("state") == "normal")
+        self.app.save_btn.invoke()
+        self.assertEqual(len(self.storage.get_all()), 1)
+
+    def test_note_field_is_labelled(self):
+        self.assertIn("备注", self.app.note_label.cget("text"))
+
+    def test_note_entry_cleared_after_save(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+        self.app.note_entry.insert(0, "vs red deck")
+        self.app.save()
+        self.assertEqual(self.app.note_entry.get(), "")
+
     def test_complete_input_saved_and_reset(self):
         self.app.select("coin_win", 1)
         self.app.select("went_first", 0)
