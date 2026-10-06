@@ -152,12 +152,18 @@ class TrackerApp:
         self.list_count_label.pack(side="left", padx=8)
         self.filter_combo.bind("<<ComboboxSelected>>", lambda e: self._load_records())
 
+        # Treeview 不会自带滚动条，长期累计的几百行会被裁掉
+        self.record_scrollbar = ttk.Scrollbar(self.list_tab, orient="vertical")
         self.record_table = ttk.Treeview(
-            self.list_tab, columns=[c for c, _, _ in COLUMNS], show="headings"
+            self.list_tab,
+            columns=[c for c, _, _ in COLUMNS],
+            show="headings",
+            yscrollcommand=self.record_scrollbar.set,
         )
         for col, heading, width in COLUMNS:
             self.record_table.heading(col, text=heading)
             self.record_table.column(col, width=width)
+        self.record_scrollbar.pack(side="right", fill="y")
         self.record_table.pack(fill="both", padx=6)
         self.record_table.bind("<<TreeviewSelect>>", lambda e: self._on_row_select())
 
@@ -189,7 +195,7 @@ class TrackerApp:
         for key, (field, value) in SHORTCUTS.items():
             self.root.bind(key, lambda e, f=field, v=value: self._shortcut(f, v))
         self.root.bind("<Return>", lambda e: self._on_return())
-        self.root.bind("<Control-z>", lambda e: self.undo_last())
+        self.root.bind("<Control-z>", lambda e: self._undo_by_shortcut())
 
     def run(self) -> None:
         try:
@@ -245,6 +251,12 @@ class TrackerApp:
 
     def show_message(self, text: str) -> None:
         self.message_label.config(text=text)
+
+    def _undo_by_shortcut(self) -> None:
+        # 焦点在文本框时 Ctrl+Z 是用户的"撤销打字"反射，不能删数据库记录
+        if self._entry_has_focus():
+            return
+        self.undo_last()
 
     def undo_last(self) -> None:
         try:
@@ -304,6 +316,8 @@ class TrackerApp:
             )
         self._records_by_id = {str(r["id"]): r for r in records}
         self.list_count_label.config(text=f"共 {len(records)} 条")
+        if self.selected_id is not None and str(self.selected_id) not in self._records_by_id:
+            self.clear_edit()
 
     def _on_row_select(self) -> None:
         selected = self.record_table.selection()
@@ -325,6 +339,8 @@ class TrackerApp:
 
     def clear_edit(self) -> None:
         self.selected_id = None
+        # 不清除表格选中，重新点击同一行不会触发 <<TreeviewSelect>>，面板无法重开
+        self.record_table.selection_set()
         self.edit_selections = {k: None for k in ("coin_win", "went_first", "duel_win")}
         for buttons in self._edit_buttons.values():
             for btn in buttons.values():

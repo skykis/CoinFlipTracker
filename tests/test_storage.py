@@ -126,6 +126,13 @@ class StorageTest(unittest.TestCase):
         s = Storage(self.db_path)
         self.assertIsNone(s.delete_last())
 
+    def test_non_padded_date_is_normalized(self):
+        s = Storage(self.db_path)
+        s.insert_duel(1, 1, 1, date="2026-1-5")
+        self.assertEqual(s.get_all()[0]["date"], "2026-01-05")
+        self.assertEqual(s.get_dates(), ["2026-01-05"])
+        s.close()
+
 
 if __name__ == "__main__":
     unittest.main()

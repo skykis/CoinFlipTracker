@@ -19,10 +19,11 @@ CREATE INDEX IF NOT EXISTS idx_duels_date ON duels (date);
 
 def _validate_date(value: str) -> str:
     try:
-        datetime.strptime(value, "%Y-%m-%d")
+        parsed = datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
         raise ValueError(f"无效日期: {value!r}，应为 YYYY-MM-DD")
-    return value
+    # 归一化 "2026-1-5" → "2026-01-05"，否则 GROUP BY date 会把同一天拆成两行
+    return parsed.strftime("%Y-%m-%d")
 
 
 class Storage:

@@ -198,13 +198,15 @@ class UITest(unittest.TestCase):
 
     def test_shortcut_ignored_when_entry_has_focus(self):
         # Tk focus is per-interpreter: after another Tk root in the same process
-        # is destroyed, focus_get() returns None, so the focus check is injected.
-        self.app._entry_has_focus = lambda: True
+        # is destroyed, focus_get() returns None, so focus_get is stubbed while
+        # the real _entry_has_focus predicate still runs.
+        probe = tk.Entry(self.root)
+        self.root.focus_get = lambda: probe
         self.app._shortcut("coin_win", 1)
         self.assertIsNone(self.app.selections["coin_win"])
 
     def test_shortcut_works_when_no_entry_has_focus(self):
-        self.app._entry_has_focus = lambda: False
+        self.root.focus_get = lambda: None
         self.app._shortcut("coin_win", 1)
         self.assertEqual(self.app.selections["coin_win"], 1)
 
@@ -315,12 +317,16 @@ class UITest(unittest.TestCase):
         self.assertIsNone(self.app.selected_id)
         self.assertEqual(self.app.update_btn.cget("state"), "disabled")
 
+    def test_ctrl_z_is_bound_to_undo(self):
+        # Tk 只在进程内的第一个 root 上派发生成事件，所以绑定本身单独检查，
+        # 行为由 _undo_by_shortcut 的测试验证。
+        self.assertIn("<lambda>", self.root.bind("<Control-z>"))
+
     def test_ctrl_z_undoes_last_record(self):
         self.storage.insert_duel(1, 1, 1)
         self.storage.insert_duel(0, 0, 0)
         self.app.refresh()
-        self.app.root.update()
-        self.app.root.event_generate("<Control-z>")
+        self.app._undo_by_shortcut()
         self.assertEqual(len(self.storage.get_all()), 1)
         self.assertIn("撤销", self.app.message_label.cget("text"))
 
@@ -334,6 +340,66 @@ class UITest(unittest.TestCase):
         self.app.delete_selected()
         self.assertEqual(self.app.filter_combo.get(), "全部")
         self.assertEqual(len(self.app.record_table.get_children()), 0)
+
+    def test_ctrl_z_ignored_when_text_field_has_focus(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        probe = tk.Entry(self.root)
+        self.root.focus_get = lambda: probe
+        self.app._undo_by_shortcut()
+        self.assertEqual(len(self.storage.get_all()), 1)
+
+    def test_undo_button_works_while_text_field_has_focus(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        probe = tk.Entry(self.root)
+        self.root.focus_get = lambda: probe
+        self.app.undo_btn.invoke()
+        self.assertEqual(len(self.storage.get_all()), 0)
+
+    def test_ctrl_z_repeated_undoes_multiple_records(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.storage.insert_duel(0, 0, 0)
+        self.storage.insert_duel(1, 0, 1)
+        self.app.refresh()
+        self.app._undo_by_shortcut()
+        self.app._undo_by_shortcut()
+        self.assertEqual(len(self.storage.get_all()), 1)
+
+    def test_edit_panel_cleared_when_selected_row_deleted(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.storage.delete_duel(rid)
+        self.app.refresh()
+        self.assertIsNone(self.app.selected_id)
+        self.assertEqual(self.app.update_btn.cget("state"), "disabled")
+
+    def test_edit_panel_cleared_when_filter_excludes_selected_row(self):
+        rid = self.storage.insert_duel(1, 1, 1, date="2026-10-05")
+        self.storage.insert_duel(0, 0, 0, date="2026-10-06")
+        self.app.refresh()
+        self.app.filter_combo.set("2026-10-05")
+        self.app._load_records()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.filter_combo.set("2026-10-06")
+        self.app._load_records()
+        self.assertIsNone(self.app.selected_id)
+        self.assertEqual(self.app.update_btn.cget("state"), "disabled")
+
+    def test_cancel_clears_row_selection(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.clear_edit()
+        self.assertEqual(self.app.record_table.selection(), ())
+
+    def test_record_list_has_scrollbar(self):
+        self.assertTrue(hasattr(self.app, "record_scrollbar"))
+        self.assertTrue(self.app.record_table.cget("yscrollcommand"))
 
 
 if __name__ == "__main__":
