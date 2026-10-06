@@ -5,6 +5,8 @@ import matplotlib
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 
+import theme
+
 # 图表文案为中文，默认字体 DejaVu Sans 不含汉字字形；按平台回退到可用字体
 matplotlib.rcParams["font.family"] = "sans-serif"
 matplotlib.rcParams["font.sans-serif"] = [
@@ -16,6 +18,18 @@ matplotlib.rcParams["font.sans-serif"] = [
 ]
 
 MAX_DATE_TICKS = 12
+
+
+def _style_ax(ax, title: str) -> None:
+    ax.set_facecolor(theme.CARD)
+    ax.grid(True, color=theme.GRID, linewidth=0.8)
+    ax.set_title(title, color=theme.TEXT, fontweight="bold")
+    ax.tick_params(colors=theme.MUTED)
+    # get_xlabel() 返回字符串，颜色要写在 Text 对象上
+    ax.xaxis.label.set_color(theme.MUTED)
+    ax.yaxis.label.set_color(theme.MUTED)
+    for spine in ax.spines.values():
+        spine.set_color(theme.BORDER)
 
 
 def _configure_date_axis(ax, dates: list[datetime]) -> None:
@@ -33,7 +47,7 @@ def _configure_date_axis(ax, dates: list[datetime]) -> None:
 
 
 def _placeholder(ax) -> None:
-    ax.text(0.5, 0.5, "暂无数据", ha="center", va="center")
+    ax.text(0.5, 0.5, "暂无数据", ha="center", va="center", color=theme.MUTED)
     ax.axis("off")
 
 
@@ -43,11 +57,11 @@ def draw_coin_rate(ax, daily_counts: list[dict]) -> None:
         return
     dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
     rates = [d["coin_wins"] / d["total"] * 100 for d in daily_counts]
-    ax.plot(dates, rates, marker="o")
-    ax.axhline(50, linestyle="--", color="gray")
+    ax.plot(dates, rates, marker="o", color=theme.ACCENT)
+    ax.axhline(50, linestyle="--", color=theme.MUTED)
     ax.set_ylabel("硬币胜率 (%)")
-    ax.set_title("每日硬币胜率趋势")
     _configure_date_axis(ax, dates)
+    _style_ax(ax, "每日硬币胜率趋势")
 
 
 def draw_daily_counts(ax, daily_counts: list[dict]) -> None:
@@ -56,10 +70,10 @@ def draw_daily_counts(ax, daily_counts: list[dict]) -> None:
         return
     dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
     totals = [d["total"] for d in daily_counts]
-    ax.bar(dates, totals)
+    ax.bar(dates, totals, color=theme.ACCENT)
     ax.set_ylabel("对数")
-    ax.set_title("每日对数")
     _configure_date_axis(ax, dates)
+    _style_ax(ax, "每日对数")
 
 
 def draw_per_duel(ax, records: list[dict]) -> None:
@@ -69,13 +83,13 @@ def draw_per_duel(ax, records: list[dict]) -> None:
     index = list(range(1, len(records) + 1))
     results = [r["coin_win"] * 100 for r in records]
     cumulative = [sum(results[:i + 1]) / (i + 1) for i in range(len(results))]
-    ax.plot(index, results, marker="o", linestyle="", label="每局硬币")
-    ax.plot(index, cumulative, marker=".", label="累计硬币胜率")
-    ax.axhline(50, linestyle="--", color="gray")
+    ax.plot(index, results, marker="o", linestyle="", color=theme.MUTED, label="每局硬币")
+    ax.plot(index, cumulative, marker=".", color=theme.ACCENT, label="累计硬币胜率")
+    ax.axhline(50, linestyle="--", color=theme.MUTED)
     ax.set_ylim(0, 100)
     # 局数是整数，默认刻度会出现 0.5、1.5 这类无意义的半局刻度
     ax.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=MAX_DATE_TICKS))
     ax.set_xlabel("第 N 局")
     ax.set_ylabel("百分比 (%)")
-    ax.set_title("逐局硬币趋势")
     ax.legend()
+    _style_ax(ax, "逐局硬币趋势")

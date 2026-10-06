@@ -1,8 +1,10 @@
 # tests/test_charts.py
 import unittest
 
+from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 
+import theme
 from charts import draw_coin_rate, draw_daily_counts, draw_per_duel
 
 
@@ -87,6 +89,16 @@ class ChartsTest(unittest.TestCase):
             all(float(t).is_integer() for t in ticks),
             f"non-integer duel ticks: {ticks}",
         )
+
+    def test_axes_use_the_light_palette(self):
+        _, ax = fresh_axes()
+        draw_coin_rate(ax, [{"date": "2026-10-06", "total": 1, "coin_wins": 1}])
+        gridlines = ax.get_xgridlines() + ax.get_ygridlines()
+        self.assertEqual(ax.get_facecolor(), to_rgba(theme.CARD))
+        self.assertTrue(gridlines, "grid lines should exist")
+        self.assertTrue(all(g.get_visible() for g in gridlines), "grid lines should be visible")
+        self.assertEqual(gridlines[0].get_color(), theme.GRID)
+        self.assertEqual(ax.get_title(), "每日硬币胜率趋势")
 
     def test_per_duel_chart_plots_each_duel_result(self):
         records = [

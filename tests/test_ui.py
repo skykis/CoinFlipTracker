@@ -5,9 +5,15 @@ import unittest
 import tkinter as tk
 from datetime import datetime
 
+import theme
 import ui
 from storage import Storage
 from ui import TrackerApp
+
+
+def state(widget) -> str:
+    # ttk.Button 的 cget("state") 返回 Tcl index 对象，不是 str
+    return str(widget.cget("state"))
 
 
 class UITest(unittest.TestCase):
@@ -35,7 +41,7 @@ class UITest(unittest.TestCase):
         self.app.select("coin_win", 1)
         self.app.select("went_first", 0)
         self.app.select("duel_win", 1)
-        self.assertTrue(self.app.save_btn.cget("state") == "normal")
+        self.assertTrue(state(self.app.save_btn) == "normal")
         self.app.save_btn.invoke()
         self.assertEqual(len(self.storage.get_all()), 1)
 
@@ -45,11 +51,11 @@ class UITest(unittest.TestCase):
         self.app._buttons["went_first"][0].invoke()
         self.app._buttons["duel_win"][1].invoke()
         self.assertTrue(self.app.can_save())
-        self.assertEqual(self.app.save_btn.cget("state"), "normal")
+        self.assertEqual(state(self.app.save_btn), "normal")
 
     def test_save_stays_disabled_until_all_three_are_chosen(self):
         self.app._buttons["coin_win"][1].invoke()
-        self.assertEqual(self.app.save_btn.cget("state"), "disabled")
+        self.assertEqual(state(self.app.save_btn), "disabled")
 
     def test_choice_buttons_still_work_after_a_save(self):
         # save() 重置选择时必须原地修改字典：按钮闭包捕获的是同一个 dict 对象
@@ -63,7 +69,7 @@ class UITest(unittest.TestCase):
         self.assertEqual(
             self.app.selections, {"coin_win": 1, "went_first": 0, "duel_win": 1}
         )
-        self.assertEqual(self.app.save_btn.cget("state"), "normal")
+        self.assertEqual(state(self.app.save_btn), "normal")
         self.app.save()
         self.assertEqual(len(self.storage.get_all()), 2)
 
@@ -116,17 +122,23 @@ class UITest(unittest.TestCase):
         rec = self.storage.get_all()[0]
         self.assertEqual(rec["note"], "vs red deck")
 
-    def test_buttons_reset_to_platform_default_background_after_save(self):
-        fresh = tk.Button(self.root)
-        default_bg = fresh.cget("bg")
-        fresh.destroy()
+    def test_selected_choice_button_uses_selected_style(self):
+        self.app.select("coin_win", 1)
+        self.assertEqual(
+            self.app._buttons["coin_win"][1].cget("style"), "Selected.TButton"
+        )
+        self.assertEqual(
+            self.app._buttons["coin_win"][0].cget("style"), "Choice.TButton"
+        )
+
+    def test_save_resets_choice_button_styles(self):
         self.app.select("coin_win", 1)
         self.app.select("went_first", 1)
         self.app.select("duel_win", 1)
         self.app.save()
         for buttons in self.app._buttons.values():
             for btn in buttons.values():
-                self.assertEqual(btn.cget("bg"), default_bg)
+                self.assertEqual(btn.cget("style"), "Choice.TButton")
 
     def test_each_canvas_is_created_with_its_own_figure(self):
         self.assertEqual(len(self.app.figures), 3)
@@ -251,16 +263,15 @@ class UITest(unittest.TestCase):
         self.app._shortcut("coin_win", 1)
         self.assertEqual(self.app.selections["coin_win"], 1)
 
-    def test_stats_display_streak_direction_and_all_fields(self):
+    def test_stats_show_both_streak_directions(self):
         # coin: win, win -> streak 2 wins; duel: win, loss -> streak 1 loss
         self.storage.insert_duel(1, 1, 1)
         self.storage.insert_duel(1, 0, 0)
         self.app.refresh()
-        label = self.app.today_label.cget("text")
-        self.assertIn("连串 2赢", label)
-        self.assertIn("连串 1输", label)
-        self.assertIn("后手 1", label)
-        self.assertIn("最长 1/1", label)
+        self.assertEqual(self.app.today_values["coin_streak"].cget("text"), "2赢")
+        self.assertEqual(self.app.today_values["duel_streak"].cget("text"), "1输")
+        self.assertEqual(self.app.today_details["coin_streak"].cget("text"), "最长 2/0")
+        self.assertEqual(self.app.today_details["duel_streak"].cget("text"), "最长 1/1")
 
     def test_record_list_is_the_last_tab(self):
         # 不依赖 matplotlib 是否安装：图表标签页数量可变，记录列表始终是最后一个
@@ -326,7 +337,7 @@ class UITest(unittest.TestCase):
         self.app.edit_selections["coin_win"] = 0
         self.app.update_selected()
         self.assertEqual(self.storage.get_all()[0]["coin_win"], 0)
-        self.assertIn("硬币 0赢/1输", self.app.today_label.cget("text"))
+        self.assertEqual(self.app.today_details["coin"].cget("text"), "0赢/1输")
 
     def test_update_with_invalid_date_keeps_record(self):
         rid = self.storage.insert_duel(1, 1, 1)
@@ -362,7 +373,7 @@ class UITest(unittest.TestCase):
         self.app.delete_selected()
         self.assertEqual(self.storage.get_all(), [])
         self.assertIsNone(self.app.selected_id)
-        self.assertEqual(self.app.update_btn.cget("state"), "disabled")
+        self.assertEqual(state(self.app.update_btn), "disabled")
 
     def test_ctrl_z_is_bound_to_undo(self):
         # Tk 只在进程内的第一个 root 上派发生成事件，所以绑定本身单独检查，
@@ -421,7 +432,7 @@ class UITest(unittest.TestCase):
         self.storage.delete_duel(rid)
         self.app.refresh()
         self.assertIsNone(self.app.selected_id)
-        self.assertEqual(self.app.update_btn.cget("state"), "disabled")
+        self.assertEqual(state(self.app.update_btn), "disabled")
 
     def test_edit_panel_cleared_when_filter_excludes_selected_row(self):
         rid = self.storage.insert_duel(1, 1, 1, date="2026-10-05")
@@ -434,7 +445,7 @@ class UITest(unittest.TestCase):
         self.app.filter_combo.set("2026-10-06")
         self.app._load_records()
         self.assertIsNone(self.app.selected_id)
-        self.assertEqual(self.app.update_btn.cget("state"), "disabled")
+        self.assertEqual(state(self.app.update_btn), "disabled")
 
     def test_cancel_clears_row_selection(self):
         rid = self.storage.insert_duel(1, 1, 1)
@@ -489,11 +500,73 @@ class UITest(unittest.TestCase):
         self.assertIn("unexpected failure", message)
         self.assertNotIn("YYYY-MM-DD", message)
 
-    def test_default_bg_is_the_platform_default(self):
-        fresh = tk.Button(self.root)
-        default_bg = fresh.cget("bg")
-        fresh.destroy()
-        self.assertEqual(self.app._default_bg, default_bg)
+    def test_theme_styles_are_configured(self):
+        style = self.app.style
+        self.assertEqual(style.theme_use(), "clam")
+        self.assertEqual(style.lookup("Card.TFrame", "background"), theme.CARD)
+        self.assertEqual(style.lookup("Choice.TButton", "background"), theme.CARD)
+        self.assertEqual(style.lookup("Selected.TButton", "background"), theme.SELECTED)
+        self.assertEqual(style.lookup("Error.TLabel", "foreground"), theme.BAD)
+
+    def test_choice_buttons_show_their_shortcut_key(self):
+        self.assertEqual(
+            [b.cget("text") for b in self.app._buttons["coin_win"].values()],
+            ["赢 1", "输 2"],
+        )
+        self.assertEqual(
+            [b.cget("text") for b in self.app._buttons["went_first"].values()],
+            ["先手 3", "后手 4"],
+        )
+        self.assertEqual(
+            [b.cget("text") for b in self.app._buttons["duel_win"].values()],
+            ["胜 5", "负 6"],
+        )
+
+    def test_choice_buttons_are_aligned_in_one_grid_row(self):
+        # 三组按钮必须在同一行、占 0..5 六个等宽列，标签在上一行跨两列
+        buttons = [b for group in self.app._buttons.values() for b in group.values()]
+        rows = {int(b.grid_info()["row"]) for b in buttons}
+        cols = sorted(int(b.grid_info()["column"]) for b in buttons)
+        spans = {int(b.grid_info()["columnspan"]) for b in buttons}
+        self.assertEqual(rows, {1})
+        self.assertEqual(cols, [0, 1, 2, 3, 4, 5])
+        self.assertEqual(spans, {1})
+
+    def test_edit_panel_choice_buttons_are_aligned_in_one_grid_row(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        buttons = [b for group in self.app._edit_buttons.values() for b in group.values()]
+        rows = {int(b.grid_info()["row"]) for b in buttons}
+        cols = sorted(int(b.grid_info()["column"]) for b in buttons)
+        self.assertEqual(rows, {1})
+        self.assertEqual(cols, [0, 1, 2, 3, 4, 5])
+
+    def test_stats_are_split_into_metric_cells(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.storage.insert_duel(1, 0, 0)
+        self.app.refresh()
+        self.assertEqual(self.app.today_values["total"].cget("text"), "2")
+        self.assertEqual(self.app.today_values["coin"].cget("text"), "100.0%")
+        self.assertEqual(self.app.today_values["coin_streak"].cget("text"), "2赢")
+        self.assertEqual(self.app.today_values["duel"].cget("text"), "50.0%")
+        self.assertEqual(self.app.today_details["coin"].cget("text"), "2赢/0输")
+        self.assertEqual(self.app.today_details["first"].cget("text"), "先手 1 / 后手 1")
+        self.assertEqual(self.app.today_details["duel"].cget("text"), "1胜/1负")
+        self.assertEqual(self.app.today_details["coin_streak"].cget("text"), "最长 2/0")
+
+    def test_message_style_follows_result(self):
+        self.app.show_message("已更新", kind="success")
+        self.assertEqual(self.app.message_label.cget("style"), "Success.TLabel")
+        self.app.show_message("日期格式错误", kind="error")
+        self.assertEqual(self.app.message_label.cget("style"), "Error.TLabel")
+        self.app.show_message("")
+        self.assertEqual(self.app.message_label.cget("style"), "Status.TLabel")
+
+    def test_window_has_a_default_size(self):
+        self.app.root.update_idletasks()
+        self.assertEqual(self.app.root.geometry().split("+")[0], "900x640")
 
 
 if __name__ == "__main__":
