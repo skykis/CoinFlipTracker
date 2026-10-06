@@ -58,11 +58,22 @@ COLUMNS = (
     ("note", "备注", 160),
 )
 
-# 录入区与编辑面板共用同一列结构：0..5 六个等宽按钮列，然后日期/备注/动作
+# 录入区与编辑面板都只用 0..5 这六个等宽列：第二行放备注/日期/动作按钮，
+# 这样卡片宽度只取决于六个按钮，不会超出窗口
 BUTTON_COLS = 6
-DATE_COL = 6
-NOTE_COL = 7
-ACTION_COL = 8
+
+# 录入区第二行：备注 3 列，日期 1 列，保存/撤销各 1 列
+NOTE_SPAN, DATE_COL, SAVE_COL, UNDO_COL = 3, 3, 4, 5
+# 编辑面板第二行：备注 2 列，日期 1 列，更新/删除/取消各 1 列
+EDIT_NOTE_SPAN, EDIT_DATE_COL = 2, 2
+EDIT_UPDATE_COL, EDIT_DELETE_COL, EDIT_CANCEL_COL = 3, 4, 5
+
+# 窗口至少这么大；若内容需要更多空间，_fit_window 会自动放大
+MIN_WIDTH = 900
+MIN_HEIGHT = 720
+
+# 图表必须能放进标签页：7x3.2 英寸 @ 100 dpi = 700x320 像素
+CHART_SIZE = (7, 3.2)
 
 
 def format_metrics(stats: dict, label: str, records: list[dict]) -> dict[str, tuple[str, str]]:
@@ -104,9 +115,6 @@ class TrackerApp:
         self.refresh()
 
     def _build_ui(self) -> None:
-        self.root.geometry("900x640")
-        self.root.minsize(820, 560)
-
         root_frame = ttk.Frame(self.root, style="Root.TFrame")
         root_frame.pack(fill="both", expand=True, padx=14, pady=14)
         root_frame.grid_columnconfigure(0, weight=1)
@@ -116,21 +124,17 @@ class TrackerApp:
         header.grid(row=0, column=0, sticky="ew")
         header.grid_columnconfigure(0, weight=1)
         ttk.Label(header, text="CoinFlipTracker", style="Title.TLabel").grid(
-            row=0, column=0, sticky="w", padx=14, pady=10
+            row=0, column=0, sticky="w", padx=14, pady=8
         )
         ttk.Label(header, text=datetime.now().strftime("%Y-%m-%d"), style="Subtle.TLabel").grid(
-            row=0, column=1, sticky="e", padx=14, pady=10
+            row=0, column=1, sticky="e", padx=14, pady=8
         )
 
         entry = ttk.Frame(root_frame, style="Card.TFrame")
-        entry.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        entry.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         # uniform 让六个按钮列等宽 —— 行列对齐靠它，而不是逐个写死宽度
         for col in range(BUTTON_COLS):
             entry.grid_columnconfigure(col, uniform="btn", minsize=78)
-        entry.grid_columnconfigure(DATE_COL, minsize=110)
-        entry.grid_columnconfigure(NOTE_COL, minsize=170, weight=1)
-        entry.grid_columnconfigure(ACTION_COL, minsize=90)
-        entry.grid_columnconfigure(ACTION_COL + 1, minsize=90)
 
         col = 0
         for field, label, choices in OPTIONS:
@@ -140,34 +144,36 @@ class TrackerApp:
             )
             col += 2
 
-        ttk.Label(entry, text="日期", style="Section.TLabel").grid(
-            row=0, column=DATE_COL, sticky="w", padx=4, pady=(10, 4)
-        )
-        self.date_entry = ttk.Entry(entry, width=12)
-        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-        self.date_entry.grid(row=1, column=DATE_COL, sticky="ew", padx=4, pady=(0, 12))
-
+        # 第二行：备注占三列，日期一列，动作按钮两列 —— 与上面的按钮列对齐
         self.note_label = ttk.Label(entry, text="备注（可选）", style="Section.TLabel")
-        self.note_label.grid(row=0, column=NOTE_COL, sticky="w", padx=4, pady=(10, 4))
-        self.note_entry = ttk.Entry(entry, width=22)
-        self.note_entry.grid(row=1, column=NOTE_COL, sticky="ew", padx=4, pady=(0, 12))
-
+        self.note_label.grid(row=2, column=0, columnspan=NOTE_SPAN, sticky="w", padx=4, pady=(0, 2))
+        ttk.Label(entry, text="日期", style="Section.TLabel").grid(
+            row=2, column=DATE_COL, sticky="w", padx=4, pady=(0, 2)
+        )
         self.save_btn = ttk.Button(
             entry, text="保存", style="Primary.TButton", command=self.save, state="disabled"
         )
-        self.save_btn.grid(row=1, column=ACTION_COL, sticky="ew", padx=4, pady=(0, 12))
+        self.save_btn.grid(row=2, column=SAVE_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8))
         self.undo_btn = ttk.Button(
             entry, text="撤销上一条", style="Ghost.TButton", command=self.undo_last
         )
-        self.undo_btn.grid(row=1, column=ACTION_COL + 1, sticky="ew", padx=(0, 10), pady=(0, 12))
+        self.undo_btn.grid(
+            row=2, column=UNDO_COL, rowspan=2, sticky="ew", padx=(0, 10), pady=(0, 8)
+        )
+
+        self.note_entry = ttk.Entry(entry, width=22)
+        self.note_entry.grid(row=3, column=0, columnspan=NOTE_SPAN, sticky="ew", padx=4, pady=(0, 8))
+        self.date_entry = ttk.Entry(entry, width=12)
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.date_entry.grid(row=3, column=DATE_COL, sticky="ew", padx=4, pady=(0, 8))
 
         stats = ttk.Frame(root_frame, style="Card.TFrame")
-        stats.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        stats.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         for i in range(len(METRICS)):
-            stats.grid_columnconfigure(i, uniform="metric", minsize=112)
+            stats.grid_columnconfigure(i, uniform="metric", minsize=100)
         self.today_values, self.today_details = self._make_stats_section(stats, 0, "当天")
         ttk.Separator(stats, orient="horizontal").grid(
-            row=4, column=0, columnspan=len(METRICS), sticky="ew", padx=14, pady=6
+            row=4, column=0, columnspan=len(METRICS), sticky="ew", padx=14, pady=4
         )
         self.total_values, self.total_details = self._make_stats_section(stats, 5, "累计")
 
@@ -175,7 +181,7 @@ class TrackerApp:
         self.message_label.grid(row=3, column=0, sticky="ew", pady=(8, 0))
 
         self.notebook = ttk.Notebook(root_frame)
-        self.notebook.grid(row=4, column=0, sticky="nsew", pady=(10, 0))
+        self.notebook.grid(row=4, column=0, sticky="nsew", pady=(8, 0))
 
         if MATPLOTLIB_OK:
             self.canvases = []
@@ -183,7 +189,7 @@ class TrackerApp:
             for title, _ in CHARTS:
                 tab = ttk.Frame(self.notebook, style="Card.TFrame")
                 self.notebook.add(tab, text=title)
-                fig = Figure(figsize=(8, 4))
+                fig = Figure(figsize=CHART_SIZE)
                 canvas = FigureCanvasTkAgg(fig, master=tab)
                 canvas.get_tk_widget().pack(fill="both", expand=True, padx=8, pady=8)
                 self.figures.append(fig)
@@ -200,7 +206,7 @@ class TrackerApp:
         self.notebook.add(self.list_tab, text="记录列表")
 
         filter_frame = ttk.Frame(self.list_tab, style="Card.TFrame")
-        filter_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+        filter_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=8)
         filter_frame.grid_columnconfigure(2, weight=1)
         ttk.Label(filter_frame, text="日期筛选", style="Section.TLabel").grid(
             row=0, column=0, sticky="w"
@@ -214,10 +220,12 @@ class TrackerApp:
 
         # Treeview 不会自带滚动条，长期累计的几百行会被裁掉
         self.record_scrollbar = ttk.Scrollbar(self.list_tab, orient="vertical")
+        # height 只决定请求高度（滚动条负责其余的行），否则标签页会把窗口撑得太高
         self.record_table = ttk.Treeview(
             self.list_tab,
             columns=[c for c, _, _ in COLUMNS],
             show="headings",
+            height=7,
             yscrollcommand=self.record_scrollbar.set,
         )
         self.record_table.tag_configure("oddrow", background=theme.ROW_ALT)
@@ -231,13 +239,9 @@ class TrackerApp:
         self.record_table.bind("<<TreeviewSelect>>", lambda e: self._on_row_select())
 
         edit_frame = ttk.Frame(self.list_tab, style="Card.TFrame")
-        edit_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        edit_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=8)
         for col in range(BUTTON_COLS):
             edit_frame.grid_columnconfigure(col, uniform="editbtn", minsize=78)
-        edit_frame.grid_columnconfigure(NOTE_COL, minsize=170, weight=1)
-        edit_frame.grid_columnconfigure(DATE_COL, minsize=110)
-        for col in range(ACTION_COL, ACTION_COL + 3):
-            edit_frame.grid_columnconfigure(col, minsize=80)
 
         self.edit_selections = {"coin_win": None, "went_first": None, "duel_win": None}
         self._edit_buttons = {}
@@ -249,29 +253,37 @@ class TrackerApp:
             col += 2
 
         ttk.Label(edit_frame, text="备注", style="Section.TLabel").grid(
-            row=0, column=NOTE_COL, sticky="w", padx=4, pady=(10, 4)
+            row=2, column=0, columnspan=EDIT_NOTE_SPAN, sticky="w", padx=4, pady=(0, 4)
         )
-        self.edit_note = ttk.Entry(edit_frame, width=22)
-        self.edit_note.grid(row=1, column=NOTE_COL, sticky="ew", padx=4, pady=(0, 10))
         ttk.Label(edit_frame, text="日期", style="Section.TLabel").grid(
-            row=0, column=DATE_COL, sticky="w", padx=4, pady=(10, 4)
+            row=2, column=EDIT_DATE_COL, sticky="w", padx=4, pady=(0, 4)
         )
-        self.edit_date = ttk.Entry(edit_frame, width=12)
-        self.edit_date.grid(row=1, column=DATE_COL, sticky="ew", padx=4, pady=(0, 10))
         self.update_btn = ttk.Button(
             edit_frame, text="更新", style="Primary.TButton",
             command=self.update_selected, state="disabled",
         )
-        self.update_btn.grid(row=1, column=ACTION_COL, sticky="ew", padx=4, pady=(0, 10))
+        self.update_btn.grid(
+            row=2, column=EDIT_UPDATE_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
+        )
         self.delete_btn = ttk.Button(
             edit_frame, text="删除", style="Danger.TButton",
             command=self.delete_selected, state="disabled",
         )
-        self.delete_btn.grid(row=1, column=ACTION_COL + 1, sticky="ew", padx=4, pady=(0, 10))
+        self.delete_btn.grid(
+            row=2, column=EDIT_DELETE_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
+        )
         self.cancel_btn = ttk.Button(
             edit_frame, text="取消", style="Ghost.TButton", command=self.clear_edit
         )
-        self.cancel_btn.grid(row=1, column=ACTION_COL + 2, sticky="ew", padx=(0, 10), pady=(0, 10))
+        self.cancel_btn.grid(
+            row=2, column=EDIT_CANCEL_COL, rowspan=2, sticky="ew", padx=(0, 10), pady=(0, 8)
+        )
+        self.edit_note = ttk.Entry(edit_frame, width=22)
+        self.edit_note.grid(
+            row=3, column=0, columnspan=EDIT_NOTE_SPAN, sticky="ew", padx=4, pady=(0, 8)
+        )
+        self.edit_date = ttk.Entry(edit_frame, width=12)
+        self.edit_date.grid(row=3, column=EDIT_DATE_COL, sticky="ew", padx=4, pady=(0, 8))
 
         self.selected_id = None
         self._records_by_id = {}
@@ -280,6 +292,16 @@ class TrackerApp:
             self.root.bind(key, lambda e, f=field, v=value: self._shortcut(f, v))
         self.root.bind("<Return>", lambda e: self._on_return())
         self.root.bind("<Control-z>", lambda e: self._undo_by_shortcut())
+
+        self._fit_window()
+
+    def _fit_window(self) -> None:
+        # 写死窗口尺寸会让右侧按钮和标签页底部被裁掉：尺寸由内容实际需要决定
+        self.root.update_idletasks()
+        width = max(MIN_WIDTH, self.root.winfo_reqwidth())
+        height = max(MIN_HEIGHT, self.root.winfo_reqheight())
+        self.root.geometry(f"{width}x{height}")
+        self.root.minsize(width, height)
 
     def _make_choice_group(self, parent, field, label, choices, store, start_col=0, on_change=None):
         ttk.Label(parent, text=label, style="Section.TLabel").grid(
@@ -302,7 +324,7 @@ class TrackerApp:
 
     def _make_stats_section(self, parent, row, title):
         ttk.Label(parent, text=title, style="Section.TLabel").grid(
-            row=row, column=0, columnspan=len(METRICS), sticky="w", padx=14, pady=(10, 2)
+            row=row, column=0, columnspan=len(METRICS), sticky="w", padx=14, pady=(8, 2)
         )
         values, details = {}, {}
         for i, (key, name) in enumerate(METRICS):
@@ -312,7 +334,7 @@ class TrackerApp:
             value_label = ttk.Label(parent, text="—", style="Metric.TLabel")
             value_label.grid(row=row + 2, column=i, sticky="w", padx=14)
             detail_label = ttk.Label(parent, text="", style="MetricDetail.TLabel")
-            detail_label.grid(row=row + 3, column=i, sticky="w", padx=14, pady=(0, 10))
+            detail_label.grid(row=row + 3, column=i, sticky="w", padx=14, pady=(0, 8))
             values[key] = value_label
             details[key] = detail_label
         return values, details

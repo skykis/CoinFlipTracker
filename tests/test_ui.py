@@ -564,9 +564,55 @@ class UITest(unittest.TestCase):
         self.app.show_message("")
         self.assertEqual(self.app.message_label.cget("style"), "Status.TLabel")
 
-    def test_window_has_a_default_size(self):
+    def test_window_is_at_least_as_large_as_its_content(self):
         self.app.root.update_idletasks()
-        self.assertEqual(self.app.root.geometry().split("+")[0], "900x640")
+        width, height = map(int, self.app.root.geometry().split("+")[0].split("x"))
+        req_width = self.app.root.winfo_reqwidth()
+        req_height = self.app.root.winfo_reqheight()
+        self.assertGreaterEqual(
+            width, req_width, f"window {width}x{height} clips content {req_width}x{req_height}"
+        )
+        self.assertGreaterEqual(
+            height, req_height, f"window {width}x{height} clips content {req_width}x{req_height}"
+        )
+
+    def test_window_has_a_minimum_size(self):
+        self.app.root.update_idletasks()
+        width, height = map(int, self.app.root.geometry().split("+")[0].split("x"))
+        self.assertGreaterEqual(width, ui.MIN_WIDTH)
+        self.assertGreaterEqual(height, ui.MIN_HEIGHT)
+
+    def test_no_section_is_wider_than_the_window(self):
+        self.app.root.update_idletasks()
+        width = int(self.app.root.geometry().split("+")[0].split("x")[0])
+        for section in self.app.root.winfo_children()[0].winfo_children():
+            self.assertLessEqual(
+                section.winfo_reqwidth(), width, f"{section} needs {section.winfo_reqwidth()} px"
+            )
+
+    def test_chart_canvases_fit_inside_the_window(self):
+        self.app.root.update_idletasks()
+        width = int(self.app.root.geometry().split("+")[0].split("x")[0])
+        for fig in self.app.figures:
+            canvas_px = fig.get_size_inches()[0] * fig.dpi
+            self.assertLessEqual(canvas_px, width - 60, f"chart {canvas_px} px exceeds window")
+
+    def test_note_and_date_are_in_the_row_below_the_choice_buttons(self):
+        note = self.app.note_entry.grid_info()
+        date = self.app.date_entry.grid_info()
+        self.assertEqual(int(note["row"]), 3)
+        self.assertEqual(int(note["columnspan"]), 3)
+        self.assertEqual(int(date["row"]), 3)
+        self.assertEqual(int(self.app.save_btn.grid_info()["row"]), 2)
+        self.assertEqual(int(self.app.undo_btn.grid_info()["row"]), 2)
+
+    def test_edit_panel_fields_are_in_the_row_below_the_choice_buttons(self):
+        note = self.app.edit_note.grid_info()
+        date = self.app.edit_date.grid_info()
+        self.assertEqual(int(note["row"]), 3)
+        self.assertEqual(int(note["columnspan"]), 2)
+        self.assertEqual(int(date["row"]), 3)
+        self.assertEqual(int(self.app.cancel_btn.grid_info()["column"]), 5)
 
 
 if __name__ == "__main__":
