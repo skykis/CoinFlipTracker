@@ -88,6 +88,44 @@ class StorageTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             s.insert_duel(1, 1, 1, date="2026-13-40")
 
+    def test_update_duel_changes_fields(self):
+        s = Storage(self.db_path)
+        rid = s.insert_duel(1, 1, 1, note="oops", date="2026-10-05")
+        self.assertTrue(s.update_duel(rid, 0, 0, 0, "fixed", "2026-10-04"))
+        rec = s.get_all()[0]
+        self.assertEqual(
+            (rec["coin_win"], rec["went_first"], rec["duel_win"], rec["note"], rec["date"]),
+            (0, 0, 0, "fixed", "2026-10-04"),
+        )
+
+    def test_update_missing_id_returns_false(self):
+        s = Storage(self.db_path)
+        self.assertFalse(s.update_duel(999, 1, 1, 1, None, "2026-10-06"))
+
+    def test_update_rejects_invalid_date(self):
+        s = Storage(self.db_path)
+        rid = s.insert_duel(1, 1, 1)
+        with self.assertRaises(ValueError):
+            s.update_duel(rid, 1, 1, 1, None, "not-a-date")
+
+    def test_delete_duel_removes_record(self):
+        s = Storage(self.db_path)
+        rid = s.insert_duel(1, 1, 1)
+        self.assertTrue(s.delete_duel(rid))
+        self.assertEqual(s.get_all(), [])
+        self.assertFalse(s.delete_duel(rid))
+
+    def test_delete_last_removes_newest_record(self):
+        s = Storage(self.db_path)
+        first = s.insert_duel(1, 1, 1)
+        second = s.insert_duel(0, 0, 0)
+        self.assertEqual(s.delete_last(), second)
+        self.assertEqual([r["id"] for r in s.get_all()], [first])
+
+    def test_delete_last_on_empty_db_returns_none(self):
+        s = Storage(self.db_path)
+        self.assertIsNone(s.delete_last())
+
 
 if __name__ == "__main__":
     unittest.main()

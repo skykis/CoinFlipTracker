@@ -83,6 +83,39 @@ class Storage:
         ).fetchall()
         return [r["date"] for r in rows]
 
+    def update_duel(
+        self,
+        duel_id: int,
+        coin_win: int,
+        went_first: int,
+        duel_win: int,
+        note: str | None,
+        date: str,
+    ) -> bool:
+        _validate_date(date)
+        cur = self.conn.execute(
+            "UPDATE duels SET date = ?, coin_win = ?, went_first = ?, duel_win = ?, note = ? "
+            "WHERE id = ?",
+            (date, int(coin_win), int(went_first), int(duel_win), note, duel_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_duel(self, duel_id: int) -> bool:
+        cur = self.conn.execute("DELETE FROM duels WHERE id = ?", (duel_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_last(self) -> int | None:
+        row = self.conn.execute(
+            "SELECT id FROM duels ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        self.conn.execute("DELETE FROM duels WHERE id = ?", (row["id"],))
+        self.conn.commit()
+        return row["id"]
+
     def get_by_date(self, date: str) -> list[dict]:
         rows = self.conn.execute(
             "SELECT * FROM duels WHERE date = ? ORDER BY id", (date,)
