@@ -59,6 +59,35 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(day["total"], 2)
         self.assertEqual(day["coin_wins"], 1)
 
+    def test_get_records_returns_newest_first(self):
+        s = Storage(self.db_path)
+        first = s.insert_duel(1, 1, 1)
+        second = s.insert_duel(0, 0, 0)
+        self.assertEqual([r["id"] for r in s.get_records()], [second, first])
+
+    def test_get_records_filters_by_date(self):
+        s = Storage(self.db_path)
+        s.insert_duel(1, 1, 1, date="2026-10-05")
+        s.insert_duel(0, 0, 0, date="2026-10-06")
+        self.assertEqual(len(s.get_records("2026-10-05")), 1)
+        self.assertEqual(len(s.get_records()), 2)
+
+    def test_get_dates_returns_unique_dates_desc(self):
+        s = Storage(self.db_path)
+        s.insert_duel(1, 1, 1, date="2026-10-05")
+        s.insert_duel(1, 1, 1, date="2026-10-05")
+        s.insert_duel(1, 1, 1, date="2026-10-06")
+        self.assertEqual(s.get_dates(), ["2026-10-06", "2026-10-05"])
+
+    def test_get_dates_on_empty_db(self):
+        s = Storage(self.db_path)
+        self.assertEqual(s.get_dates(), [])
+
+    def test_insert_rejects_invalid_date(self):
+        s = Storage(self.db_path)
+        with self.assertRaises(ValueError):
+            s.insert_duel(1, 1, 1, date="2026-13-40")
+
 
 if __name__ == "__main__":
     unittest.main()

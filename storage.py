@@ -17,6 +17,14 @@ CREATE INDEX IF NOT EXISTS idx_duels_date ON duels (date);
 """
 
 
+def _validate_date(value: str) -> str:
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"无效日期: {value!r}，应为 YYYY-MM-DD")
+    return value
+
+
 class Storage:
     def __init__(self, path: str):
         self.conn = sqlite3.connect(path)
@@ -46,10 +54,11 @@ class Storage:
         date: str | None = None,
     ) -> int:
         now = datetime.now()
+        date = _validate_date(date) if date is not None else now.strftime("%Y-%m-%d")
         cur = self.conn.execute(
             "INSERT INTO duels (created_at, date, coin_win, went_first, duel_win, note) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (now.isoformat(), date or now.strftime("%Y-%m-%d"),
+            (now.isoformat(), date,
              int(coin_win), int(went_first), int(duel_win), note),
         )
         self.conn.commit()
@@ -58,6 +67,21 @@ class Storage:
     def get_all(self) -> list[dict]:
         rows = self.conn.execute("SELECT * FROM duels ORDER BY id").fetchall()
         return [dict(r) for r in rows]
+
+    def get_records(self, date: str | None = None) -> list[dict]:
+        if date is None:
+            rows = self.conn.execute("SELECT * FROM duels ORDER BY id DESC").fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM duels WHERE date = ? ORDER BY id DESC", (date,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_dates(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT DISTINCT date FROM duels ORDER BY date DESC"
+        ).fetchall()
+        return [r["date"] for r in rows]
 
     def get_by_date(self, date: str) -> list[dict]:
         rows = self.conn.execute(
