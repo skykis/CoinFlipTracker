@@ -45,7 +45,7 @@ METRICS = (
 
 CHARTS = (
     ("硬币胜率趋势", draw_coin_rate),
-    ("每日对数", draw_daily_counts),
+    ("每日局数", draw_daily_counts),
     ("逐局趋势", draw_per_duel),
 )
 

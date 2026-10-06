@@ -155,7 +155,7 @@ class UITest(unittest.TestCase):
     def test_chart_tabs_include_per_duel_chart(self):
         self.assertEqual(
             [self.app.notebook.tab(i, "text") for i in range(3)],
-            ["硬币胜率趋势", "每日对数", "逐局趋势"],
+            ["硬币胜率趋势", "每日局数", "逐局趋势"],
         )
         self.assertEqual(len(self.app.canvases), 3)
 
