@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 import tkinter as tk
+from datetime import datetime
 
 import ui
 from storage import Storage
@@ -143,6 +144,69 @@ class UITest(unittest.TestCase):
             pass  # root destroyed
         else:
             self.fail("Tk root still alive after run()")
+
+    def test_date_field_defaults_to_today(self):
+        self.assertEqual(self.app.date_entry.get(), datetime.now().strftime("%Y-%m-%d"))
+
+    def test_save_uses_specified_date(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+        self.app.date_entry.delete(0, "end")
+        self.app.date_entry.insert(0, "2026-10-01")
+        self.app.save()
+        self.assertEqual(self.storage.get_all()[0]["date"], "2026-10-01")
+
+    def test_empty_date_field_defaults_to_today(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+        self.app.date_entry.delete(0, "end")
+        self.app.save()
+        self.assertEqual(self.storage.get_all()[0]["date"], datetime.now().strftime("%Y-%m-%d"))
+
+    def test_invalid_date_is_not_saved(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+        self.app.date_entry.delete(0, "end")
+        self.app.date_entry.insert(0, "2026-13-40")
+        self.assertIsNone(self.app.save())
+        self.assertEqual(len(self.storage.get_all()), 0)
+        self.assertIn("YYYY-MM-DD", self.app.message_label.cget("text"))
+
+    def test_blank_note_is_stored_as_none(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+        self.app.note_entry.insert(0, "   ")
+        self.app.save()
+        self.assertIsNone(self.storage.get_all()[0]["note"])
+
+    def test_undo_last_removes_newest_record(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.storage.insert_duel(0, 0, 0)
+        self.app.refresh()
+        self.app.undo_last()
+        self.assertEqual(len(self.storage.get_all()), 1)
+        self.assertIn("撤销", self.app.message_label.cget("text"))
+
+    def test_undo_with_no_records_reports_and_does_not_crash(self):
+        self.app.undo_last()
+        self.assertIn("没有可撤销", self.app.message_label.cget("text"))
+        self.assertEqual(len(self.storage.get_all()), 0)
+
+    def test_shortcut_ignored_when_entry_has_focus(self):
+        self.app.note_entry.focus_set()
+        self.app.root.update()  # Tk only registers focus once the window is updated
+        self.assertIsInstance(self.app.root.focus_get(), tk.Entry)
+        self.app._shortcut("coin_win", 1)
+        self.assertIsNone(self.app.selections["coin_win"])
+
+    def test_shortcut_works_when_no_entry_has_focus(self):
+        self.app.root.update()
+        self.app._shortcut("coin_win", 1)
+        self.assertEqual(self.app.selections["coin_win"], 1)
 
     def test_stats_display_streak_direction_and_all_fields(self):
         # coin: win, win -> streak 2 wins; duel: win, loss -> streak 1 loss

@@ -1,4 +1,5 @@
 # ui.py
+import sqlite3
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
@@ -76,19 +77,16 @@ class TrackerApp:
         input_frame.pack(fill="x", padx=10, pady=10)
 
         for field, label, choices in OPTIONS:
-            group = tk.Frame(input_frame)
-            group.pack(side="left", padx=8)
-            tk.Label(group, text=label).pack()
-            buttons = {}
-            for text, value in choices:
-                btn = tk.Button(
-                    group, text=text,
-                    command=lambda f=field, v=value: self.select(f, v),
-                )
-                btn.pack(side="left")
-                self._default_bg = btn.cget("bg")
-                buttons[value] = btn
-            self._buttons[field] = buttons
+            self._buttons[field] = self._make_choice_group(
+                input_frame, field, label, choices, self.selections
+            )
+
+        date_group = tk.Frame(input_frame)
+        date_group.pack(side="left", padx=8)
+        tk.Label(date_group, text="日期").pack()
+        self.date_entry = tk.Entry(date_group, width=10)
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.date_entry.pack(side="left")
 
         self.note_label = tk.Label(input_frame, text="备注(可选)")
         self.note_label.pack(side="right")
@@ -98,6 +96,8 @@ class TrackerApp:
             input_frame, text="保存 (Enter)", state="disabled", command=self.save
         )
         self.save_btn.pack(side="right")
+        self.undo_btn = tk.Button(input_frame, text="撤销上一条", command=self.undo_last)
+        self.undo_btn.pack(side="right")
 
         stats_frame = tk.Frame(self.root)
         stats_frame.pack(fill="x", padx=10)
@@ -105,6 +105,8 @@ class TrackerApp:
         self.total_label = tk.Label(stats_frame, anchor="w")
         self.today_label.pack()
         self.total_label.pack()
+        self.message_label = tk.Label(stats_frame, anchor="w", text="")
+        self.message_label.pack()
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill="both", padx=10, pady=10)
@@ -129,8 +131,8 @@ class TrackerApp:
             self.fallback_label.pack()
 
         for key, (field, value) in SHORTCUTS.items():
-            self.root.bind(key, lambda e, f=field, v=value: self.select(f, v))
-        self.root.bind("<Return>", lambda e: self.save())
+            self.root.bind(key, lambda e, f=field, v=value: self._shortcut(f, v))
+        self.root.bind("<Return>", lambda e: self._on_return())
 
     def run(self) -> None:
         try:
@@ -141,6 +143,26 @@ class TrackerApp:
             except tk.TclError:
                 pass  # window was already closed by the user
 
+    def _make_choice_group(self, parent, field, label, choices, store):
+        group = tk.Frame(parent)
+        group.pack(side="left", padx=8)
+        tk.Label(group, text=label).pack()
+        buttons = {}
+        for text, value in choices:
+            btn = tk.Button(
+                group, text=text,
+                command=lambda f=field, v=value, s=store, b=buttons: self._choose(f, v, s, b),
+            )
+            btn.pack(side="left")
+            self._default_bg = btn.cget("bg")
+            buttons[value] = btn
+        return buttons
+
+    def _choose(self, field, value, store, buttons):
+        store[field] = value
+        for v, btn in buttons.items():
+            btn.config(bg=HIGHLIGHT_BG if v == value else self._default_bg)
+
     def select(self, field: str, value: int) -> None:
         self.selections[field] = value
         for v, btn in self._buttons[field].items():
@@ -150,21 +172,53 @@ class TrackerApp:
     def can_save(self) -> bool:
         return all(v is not None for v in self.selections.values())
 
+    def _shortcut(self, field: str, value: int) -> None:
+        if isinstance(self.root.focus_get(), tk.Entry):
+            return
+        self.select(field, value)
+
+    def _on_return(self) -> None:
+        self.save()
+
+    def show_message(self, text: str) -> None:
+        self.message_label.config(text=text)
+
+    def undo_last(self) -> None:
+        try:
+            removed = self.storage.delete_last()
+        except sqlite3.Error as e:
+            self.show_message(f"数据库操作失败：{e}")
+            return
+        if removed is None:
+            self.show_message("没有可撤销的记录")
+        else:
+            self.show_message(f"已撤销记录 #{removed}")
+        self.refresh()
+
     def save(self) -> int | None:
         if not self.can_save():
             return None
-        rid = self.storage.insert_duel(
-            self.selections["coin_win"],
-            self.selections["went_first"],
-            self.selections["duel_win"],
-            note=self.note_entry.get().strip() or None,
-        )
+        try:
+            rid = self.storage.insert_duel(
+                self.selections["coin_win"],
+                self.selections["went_first"],
+                self.selections["duel_win"],
+                note=self.note_entry.get().strip() or None,
+                date=self.date_entry.get().strip() or None,
+            )
+        except ValueError:
+            self.show_message("日期格式应为 YYYY-MM-DD")
+            return None
+        except sqlite3.Error as e:
+            self.show_message(f"数据库操作失败：{e}")
+            return None
         self.note_entry.delete(0, "end")
         self.selections = {k: None for k in self.selections}
         for buttons in self._buttons.values():
             for btn in buttons.values():
                 btn.config(bg=self._default_bg)
         self.save_btn.config(state="disabled")
+        self.show_message("")
         self.refresh()
         return rid
 
