@@ -8,7 +8,8 @@ from storage import Storage
 
 try:
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-    from charts import build_figures
+    from matplotlib.figure import Figure
+    from charts import draw_coin_rate, draw_daily_counts, draw_per_duel
     MATPLOTLIB_OK = True
 except ImportError:
     MATPLOTLIB_OK = False
@@ -18,6 +19,14 @@ OPTIONS = [
     ("went_first", "先后手", [("先手", 1), ("后手", 0)]),
     ("duel_win", "决斗", [("胜", 1), ("负", 0)]),
 ]
+
+# 每个标签页绑定一个固定的 Figure：TkAgg 会把 figure 尺寸调整为 canvas 尺寸，
+# 若每次刷新都换成新 figure，渲染尺寸与 PhotoImage 不一致，旧图会残留。
+CHARTS = (
+    ("硬币胜率趋势", draw_coin_rate),
+    ("每日对数", draw_daily_counts),
+    ("逐局趋势", draw_per_duel),
+)
 
 HIGHLIGHT_BG = "lightyellow"
 
@@ -102,11 +111,14 @@ class TrackerApp:
 
         if MATPLOTLIB_OK:
             self.canvases = []
-            for title in ("硬币胜率趋势", "每日对数", "逐局趋势"):
+            self.figures = []
+            for title, _ in CHARTS:
                 tab = tk.Frame(self.notebook)
                 self.notebook.add(tab, text=title)
-                canvas = FigureCanvasTkAgg(None, master=tab)
+                fig = Figure(figsize=(8, 4))
+                canvas = FigureCanvasTkAgg(fig, master=tab)
                 canvas.get_tk_widget().pack(fill="both")
+                self.figures.append(fig)
                 self.canvases.append(canvas)
         else:
             tab = tk.Frame(self.notebook)
@@ -167,7 +179,13 @@ class TrackerApp:
             text=format_stats(compute_stats(all_records), "累计", all_records)
         )
         if MATPLOTLIB_OK:
-            figures = build_figures(self.storage.get_daily_counts(), all_records)
-            for canvas, fig in zip(self.canvases, figures):
-                canvas.figure = fig
+            daily_counts = self.storage.get_daily_counts()
+            drawers = (
+                (draw_coin_rate, daily_counts),
+                (draw_daily_counts, daily_counts),
+                (draw_per_duel, all_records),
+            )
+            for (drawer, data), canvas, fig in zip(drawers, self.canvases, self.figures):
+                fig.clear()
+                drawer(fig.subplots(), data)
                 canvas.draw()

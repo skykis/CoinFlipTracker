@@ -86,6 +86,18 @@ class UITest(unittest.TestCase):
             for btn in buttons.values():
                 self.assertEqual(btn.cget("bg"), default_bg)
 
+    def test_each_canvas_is_created_with_its_own_figure(self):
+        self.assertEqual(len(self.app.figures), 3)
+        for canvas, fig in zip(self.app.canvases, self.app.figures):
+            self.assertIs(canvas.figure, fig)
+
+    def test_refresh_reuses_figures_instead_of_replacing_them(self):
+        # 替换 figure 会让渲染尺寸与 Tk PhotoImage 不一致，旧图残留在底部 → 坐标轴重复
+        before = [canvas.figure for canvas in self.app.canvases]
+        self.app.refresh()
+        for canvas, fig in zip(self.app.canvases, before):
+            self.assertIs(canvas.figure, fig)
+
     def test_chart_tabs_include_per_duel_chart(self):
         self.assertEqual(
             [self.app.notebook.tab(i, "text") for i in range(3)],

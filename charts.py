@@ -3,7 +3,7 @@ from datetime import datetime
 
 import matplotlib
 import matplotlib.dates as mdates
-from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 
 # 图表文案为中文，默认字体 DejaVu Sans 不含汉字字形；按平台回退到可用字体
 matplotlib.rcParams["font.family"] = "sans-serif"
@@ -32,54 +32,50 @@ def _configure_date_axis(ax, dates: list[datetime]) -> None:
     ax.tick_params(axis="x", rotation=45)
 
 
-def _placeholder(fig: Figure) -> Figure:
-    ax = fig.subplots()
+def _placeholder(ax) -> None:
     ax.text(0.5, 0.5, "暂无数据", ha="center", va="center")
     ax.axis("off")
-    return fig
 
 
-def build_figures(daily_counts: list[dict], records: list[dict]) -> list[Figure]:
+def draw_coin_rate(ax, daily_counts: list[dict]) -> None:
     if not daily_counts:
-        rate_fig = _placeholder(Figure(figsize=(8, 4)))
-    else:
-        rate_fig = Figure(figsize=(8, 4))
-        ax = rate_fig.subplots()
-        dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
-        rates = [d["coin_wins"] / d["total"] * 100 for d in daily_counts]
-        ax.plot(dates, rates, marker="o")
-        ax.axhline(50, linestyle="--", color="gray")
-        ax.set_ylabel("硬币胜率 (%)")
-        ax.set_title("每日硬币胜率趋势")
-        _configure_date_axis(ax, dates)
+        _placeholder(ax)
+        return
+    dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
+    rates = [d["coin_wins"] / d["total"] * 100 for d in daily_counts]
+    ax.plot(dates, rates, marker="o")
+    ax.axhline(50, linestyle="--", color="gray")
+    ax.set_ylabel("硬币胜率 (%)")
+    ax.set_title("每日硬币胜率趋势")
+    _configure_date_axis(ax, dates)
 
+
+def draw_daily_counts(ax, daily_counts: list[dict]) -> None:
     if not daily_counts:
-        counts_fig = _placeholder(Figure(figsize=(8, 4)))
-    else:
-        counts_fig = Figure(figsize=(8, 4))
-        ax = counts_fig.subplots()
-        dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
-        totals = [d["total"] for d in daily_counts]
-        ax.bar(dates, totals)
-        ax.set_ylabel("对数")
-        ax.set_title("每日对数")
-        _configure_date_axis(ax, dates)
+        _placeholder(ax)
+        return
+    dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
+    totals = [d["total"] for d in daily_counts]
+    ax.bar(dates, totals)
+    ax.set_ylabel("对数")
+    ax.set_title("每日对数")
+    _configure_date_axis(ax, dates)
 
+
+def draw_per_duel(ax, records: list[dict]) -> None:
     if not records:
-        duel_fig = _placeholder(Figure(figsize=(8, 4)))
-    else:
-        duel_fig = Figure(figsize=(8, 4))
-        ax = duel_fig.subplots()
-        index = list(range(1, len(records) + 1))
-        results = [r["coin_win"] * 100 for r in records]
-        cumulative = [sum(results[:i + 1]) / (i + 1) for i in range(len(results))]
-        ax.plot(index, results, marker="o", linestyle="", label="每局硬币")
-        ax.plot(index, cumulative, marker=".", label="累计硬币胜率")
-        ax.axhline(50, linestyle="--", color="gray")
-        ax.set_ylim(0, 100)
-        ax.set_xlabel("第 N 局")
-        ax.set_ylabel("百分比 (%)")
-        ax.set_title("逐局硬币趋势")
-        ax.legend()
-
-    return [rate_fig, counts_fig, duel_fig]
+        _placeholder(ax)
+        return
+    index = list(range(1, len(records) + 1))
+    results = [r["coin_win"] * 100 for r in records]
+    cumulative = [sum(results[:i + 1]) / (i + 1) for i in range(len(results))]
+    ax.plot(index, results, marker="o", linestyle="", label="每局硬币")
+    ax.plot(index, cumulative, marker=".", label="累计硬币胜率")
+    ax.axhline(50, linestyle="--", color="gray")
+    ax.set_ylim(0, 100)
+    # 局数是整数，默认刻度会出现 0.5、1.5 这类无意义的半局刻度
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=MAX_DATE_TICKS))
+    ax.set_xlabel("第 N 局")
+    ax.set_ylabel("百分比 (%)")
+    ax.set_title("逐局硬币趋势")
+    ax.legend()
