@@ -221,8 +221,14 @@ class UITest(unittest.TestCase):
         self.assertIn("后手 1", label)
         self.assertIn("最长 1/1", label)
 
-    def test_fourth_tab_is_record_list(self):
-        self.assertEqual(self.app.notebook.tab(3, "text"), "记录列表")
+    def test_record_list_is_the_last_tab(self):
+        # 不依赖 matplotlib 是否安装：图表标签页数量可变，记录列表始终是最后一个
+        # notebook.size() 返回网格尺寸，不是标签页数量 —— 用 tabs()
+        tabs = [
+            self.app.notebook.tab(i, "text")
+            for i in range(len(self.app.notebook.tabs()))
+        ]
+        self.assertEqual(tabs[-1], "记录列表")
 
     def test_list_shows_all_records_and_count(self):
         self.storage.insert_duel(1, 1, 1, note="first")
@@ -400,6 +406,53 @@ class UITest(unittest.TestCase):
     def test_record_list_has_scrollbar(self):
         self.assertTrue(hasattr(self.app, "record_scrollbar"))
         self.assertTrue(self.app.record_table.cget("yscrollcommand"))
+
+    def test_delete_without_selection_does_nothing(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.delete_selected()
+        self.assertEqual(len(self.storage.get_all()), 1)
+        self.assertEqual(self.app.message_label.cget("text"), "")
+
+    def test_update_with_blank_date_is_rejected(self):
+        rid = self.storage.insert_duel(1, 1, 1, date="2026-10-05")
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.edit_date.delete(0, "end")
+        self.app.update_selected()
+        self.assertEqual(self.storage.get_all()[0]["date"], "2026-10-05")
+        self.assertIn("留空", self.app.message_label.cget("text"))
+
+    def test_enter_in_list_tab_updates_selected_record(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.notebook.select(3)
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.edit_selections["coin_win"] = 0
+        self.app._on_return()
+        self.assertEqual(self.storage.get_all()[0]["coin_win"], 0)
+
+    def test_save_reports_unexpected_value_error_generically(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 0)
+        self.app.select("duel_win", 1)
+
+        def boom(*args, **kwargs):
+            raise ValueError("unexpected failure")
+
+        self.storage.insert_duel = boom
+        self.assertIsNone(self.app.save())
+        message = self.app.message_label.cget("text")
+        self.assertIn("unexpected failure", message)
+        self.assertNotIn("YYYY-MM-DD", message)
+
+    def test_default_bg_is_the_platform_default(self):
+        fresh = tk.Button(self.root)
+        default_bg = fresh.cget("bg")
+        fresh.destroy()
+        self.assertEqual(self.app._default_bg, default_bg)
 
 
 if __name__ == "__main__":

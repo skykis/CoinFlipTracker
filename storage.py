@@ -17,11 +17,15 @@ CREATE INDEX IF NOT EXISTS idx_duels_date ON duels (date);
 """
 
 
+class InvalidDateError(ValueError):
+    """日期不符合 YYYY-MM-DD —— 让调用方能区分日期错误与其他 ValueError。"""
+
+
 def _validate_date(value: str) -> str:
     try:
         parsed = datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
-        raise ValueError(f"无效日期: {value!r}，应为 YYYY-MM-DD")
+        raise InvalidDateError(f"无效日期: {value!r}，应为 YYYY-MM-DD")
     # 归一化 "2026-1-5" → "2026-01-05"，否则 GROUP BY date 会把同一天拆成两行
     return parsed.strftime("%Y-%m-%d")
 
@@ -118,10 +122,8 @@ class Storage:
         return row["id"]
 
     def get_by_date(self, date: str) -> list[dict]:
-        rows = self.conn.execute(
-            "SELECT * FROM duels WHERE date = ? ORDER BY id", (date,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+        # 与 get_records 同一查询，只是顺序相反：统计连串取 records[-1] 作为最新一条
+        return list(reversed(self.get_records(date)))
 
     def get_daily_counts(self) -> list[dict]:
         rows = self.conn.execute(

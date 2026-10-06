@@ -5,7 +5,7 @@ from tkinter import ttk
 from datetime import datetime
 
 from stats import compute_stats
-from storage import Storage
+from storage import InvalidDateError, Storage
 
 try:
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -77,7 +77,10 @@ class TrackerApp:
         self.root.title("CoinFlipTracker")
         self.selections = {"coin_win": None, "went_first": None, "duel_win": None}
         self._buttons = {}
-        self._default_bg = ""
+        # 平台默认按钮背景，取一次即可 —— 高亮后还原用它
+        probe = tk.Button(self.root)
+        self._default_bg = probe.cget("bg")
+        probe.destroy()
         self._build_ui()
         self.refresh()
 
@@ -217,7 +220,6 @@ class TrackerApp:
                 command=lambda f=field, v=value, s=store, b=buttons: self._choose(f, v, s, b),
             )
             btn.pack(side="left")
-            self._default_bg = btn.cget("bg")
             buttons[value] = btn
         return buttons
 
@@ -227,9 +229,7 @@ class TrackerApp:
             btn.config(bg=HIGHLIGHT_BG if v == value else self._default_bg)
 
     def select(self, field: str, value: int) -> None:
-        self.selections[field] = value
-        for v, btn in self._buttons[field].items():
-            btn.config(bg=HIGHLIGHT_BG if v == value else self._default_bg)
+        self._choose(field, value, self.selections, self._buttons[field])
         self.save_btn.config(state="normal" if self.can_save() else "disabled")
 
     def can_save(self) -> bool:
@@ -246,6 +246,9 @@ class TrackerApp:
     def _on_return(self) -> None:
         # ttk.Notebook has no current(); select() with no args returns the raised tab
         if self.notebook.index(self.notebook.select()) == self.notebook.index(self.list_tab):
+            # 列表标签页里 Enter 不保存录入区；若编辑面板已打开，则写回选中记录
+            if self.selected_id is not None:
+                self.update_selected()
             return
         self.save()
 
@@ -281,8 +284,11 @@ class TrackerApp:
                 note=self.note_entry.get().strip() or None,
                 date=self.date_entry.get().strip() or None,
             )
-        except ValueError:
+        except InvalidDateError:
             self.show_message("日期格式应为 YYYY-MM-DD")
+            return None
+        except ValueError as e:
+            self.show_message(f"操作失败：{e}")
             return None
         except sqlite3.Error as e:
             self.show_message(f"数据库操作失败：{e}")
@@ -356,6 +362,11 @@ class TrackerApp:
         if not all(v is not None for v in self.edit_selections.values()):
             self.show_message("请先选择硬币/先后手/决斗")
             return
+        date = self.edit_date.get().strip()
+        if not date:
+            # 编辑面板的日期已预填，留空是用户主动清空 —— 不能像录入区那样默认当天
+            self.show_message("日期不能留空（格式 YYYY-MM-DD）")
+            return
         try:
             ok = self.storage.update_duel(
                 self.selected_id,
@@ -363,10 +374,13 @@ class TrackerApp:
                 self.edit_selections["went_first"],
                 self.edit_selections["duel_win"],
                 self.edit_note.get().strip() or None,
-                self.edit_date.get().strip(),
+                date,
             )
-        except ValueError:
+        except InvalidDateError:
             self.show_message("日期格式应为 YYYY-MM-DD")
+            return
+        except ValueError as e:
+            self.show_message(f"操作失败：{e}")
             return
         except sqlite3.Error as e:
             self.show_message(f"数据库操作失败：{e}")

@@ -126,6 +126,14 @@ class StorageTest(unittest.TestCase):
         s = Storage(self.db_path)
         self.assertIsNone(s.delete_last())
 
+    def test_get_by_date_returns_oldest_first(self):
+        # 统计连串取 records[-1] 作为最新一条，所以 get_by_date 必须升序
+        s = Storage(self.db_path)
+        first = s.insert_duel(1, 1, 1, date="2026-10-06")
+        second = s.insert_duel(0, 0, 0, date="2026-10-06")
+        self.assertEqual([r["id"] for r in s.get_by_date("2026-10-06")], [first, second])
+        s.close()
+
     def test_non_padded_date_is_normalized(self):
         s = Storage(self.db_path)
         s.insert_duel(1, 1, 1, date="2026-1-5")
