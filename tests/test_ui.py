@@ -603,8 +603,28 @@ class UITest(unittest.TestCase):
         self.assertEqual(int(note["row"]), 3)
         self.assertEqual(int(note["columnspan"]), 3)
         self.assertEqual(int(date["row"]), 3)
-        self.assertEqual(int(self.app.save_btn.grid_info()["row"]), 2)
-        self.assertEqual(int(self.app.undo_btn.grid_info()["row"]), 2)
+        # 动作按钮不跨行：它们和输入框同处第三行，而不是覆盖「提示 + 输入框」整块
+        self.assertEqual(int(self.app.save_btn.grid_info()["row"]), 3)
+        self.assertEqual(int(self.app.undo_btn.grid_info()["row"]), 3)
+        self.assertEqual(int(self.app.save_btn.grid_info()["rowspan"]), 1)
+        self.assertEqual(int(self.app.undo_btn.grid_info()["rowspan"]), 1)
+
+    def test_action_buttons_line_up_with_the_input_fields(self):
+        # 只看输入框本身（不含上方的文字提示），垂直中心必须与按钮一致
+        self.app.root.update()
+        def center(widget):
+            return widget.winfo_y() + widget.winfo_height() / 2
+
+        for name in ("save_btn", "undo_btn"):
+            button = getattr(self.app, name)
+            self.assertAlmostEqual(
+                center(button), center(self.app.note_entry), delta=1,
+                msg=f"{name} center {center(button)} vs note entry center {center(self.app.note_entry)}",
+            )
+            self.assertAlmostEqual(
+                center(button), center(self.app.date_entry), delta=1,
+                msg=f"{name} center {center(button)} vs date entry center {center(self.app.date_entry)}",
+            )
 
     def test_edit_panel_fields_are_in_the_row_below_the_choice_buttons(self):
         note = self.app.edit_note.grid_info()
@@ -613,6 +633,28 @@ class UITest(unittest.TestCase):
         self.assertEqual(int(note["columnspan"]), 2)
         self.assertEqual(int(date["row"]), 3)
         self.assertEqual(int(self.app.cancel_btn.grid_info()["column"]), 5)
+        for name in ("update_btn", "delete_btn", "cancel_btn"):
+            self.assertEqual(int(getattr(self.app, name).grid_info()["row"]), 3)
+            self.assertEqual(int(getattr(self.app, name).grid_info()["rowspan"]), 1)
+
+    def test_edit_panel_buttons_line_up_with_the_input_fields(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        # 未选中的标签页不会被映射，winfo_y 仍是 0，必须先切到「记录列表」
+        self.app.notebook.select(3)
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.root.update()
+
+        def center(widget):
+            return widget.winfo_y() + widget.winfo_height() / 2
+
+        for name in ("update_btn", "delete_btn", "cancel_btn"):
+            button = getattr(self.app, name)
+            self.assertAlmostEqual(
+                center(button), center(self.app.edit_note), delta=1,
+                msg=f"{name} center {center(button)} vs edit note center {center(self.app.edit_note)}",
+            )
 
     def test_choice_buttons_fill_the_entry_card(self):
         # 卡片被窗口撑宽，若列宽不随之增大，按钮会挤在左侧、卡片右侧留白

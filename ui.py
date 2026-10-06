@@ -59,13 +59,14 @@ COLUMNS = (
     ("note", "备注", 500),
 )
 
-# 录入区与编辑面板都只用 0..5 这六个等宽列：第二行放备注/日期/动作按钮，
-# 这样卡片宽度只取决于六个按钮，不会超出窗口
+# 录入区与编辑面板都只用 0..5 这六个等宽列：第二行放文字提示，第三行放输入框
+# 和动作按钮，这样卡片宽度只取决于六个按钮，不会超出窗口
 BUTTON_COLS = 6
 
-# 录入区第二行：备注 3 列，日期 1 列，保存/撤销各 1 列
+# 文字提示在第二行，输入框与动作按钮在第三行（列分配如下）
+# 录入区：备注 3 列，日期 1 列，保存/撤销各 1 列
 NOTE_SPAN, DATE_COL, SAVE_COL, UNDO_COL = 3, 3, 4, 5
-# 编辑面板第二行：备注 2 列，日期 1 列，更新/删除/取消各 1 列
+# 编辑面板：备注 2 列，日期 1 列，更新/删除/取消各 1 列
 EDIT_NOTE_SPAN, EDIT_DATE_COL = 2, 2
 EDIT_UPDATE_COL, EDIT_DELETE_COL, EDIT_CANCEL_COL = 3, 4, 5
 
@@ -146,7 +147,8 @@ class TrackerApp:
             )
             col += 2
 
-        # 第二行：备注占三列，日期一列，动作按钮两列 —— 与上面的按钮列对齐
+        # 第二行：备注占三列，日期一列 —— 只放文字提示
+        # 第三行：输入框和动作按钮同处一行，所以它们的垂直中心线一致
         self.note_label = ttk.Label(entry, text="备注（可选）", style="Section.TLabel")
         self.note_label.grid(row=2, column=0, columnspan=NOTE_SPAN, sticky="w", padx=4, pady=(0, 2))
         ttk.Label(entry, text="日期", style="Section.TLabel").grid(
@@ -155,13 +157,11 @@ class TrackerApp:
         self.save_btn = ttk.Button(
             entry, text="保存", style="Primary.TButton", command=self.save, state="disabled"
         )
-        self.save_btn.grid(row=2, column=SAVE_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8))
+        self.save_btn.grid(row=3, column=SAVE_COL, sticky="ew", padx=4, pady=(0, 8))
         self.undo_btn = ttk.Button(
             entry, text="撤销上一条", style="Ghost.TButton", command=self.undo_last
         )
-        self.undo_btn.grid(
-            row=2, column=UNDO_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
-        )
+        self.undo_btn.grid(row=3, column=UNDO_COL, sticky="ew", padx=4, pady=(0, 8))
 
         self.note_entry = ttk.Entry(entry, width=22)
         self.note_entry.grid(row=3, column=0, columnspan=NOTE_SPAN, sticky="ew", padx=4, pady=(0, 8))
@@ -266,20 +266,20 @@ class TrackerApp:
             command=self.update_selected, state="disabled",
         )
         self.update_btn.grid(
-            row=2, column=EDIT_UPDATE_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
+            row=3, column=EDIT_UPDATE_COL, sticky="ew", padx=4, pady=(0, 8)
         )
         self.delete_btn = ttk.Button(
             edit_frame, text="删除", style="Danger.TButton",
             command=self.delete_selected, state="disabled",
         )
         self.delete_btn.grid(
-            row=2, column=EDIT_DELETE_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
+            row=3, column=EDIT_DELETE_COL, sticky="ew", padx=4, pady=(0, 8)
         )
         self.cancel_btn = ttk.Button(
             edit_frame, text="取消", style="Ghost.TButton", command=self.clear_edit
         )
         self.cancel_btn.grid(
-            row=2, column=EDIT_CANCEL_COL, rowspan=2, sticky="ew", padx=4, pady=(0, 8)
+            row=3, column=EDIT_CANCEL_COL, sticky="ew", padx=4, pady=(0, 8)
         )
         self.edit_note = ttk.Entry(edit_frame, width=22)
         self.edit_note.grid(
