@@ -197,14 +197,14 @@ class UITest(unittest.TestCase):
         self.assertEqual(len(self.storage.get_all()), 0)
 
     def test_shortcut_ignored_when_entry_has_focus(self):
-        self.app.note_entry.focus_set()
-        self.app.root.update()  # Tk only registers focus once the window is updated
-        self.assertIsInstance(self.app.root.focus_get(), tk.Entry)
+        # Tk focus is per-interpreter: after another Tk root in the same process
+        # is destroyed, focus_get() returns None, so the focus check is injected.
+        self.app._entry_has_focus = lambda: True
         self.app._shortcut("coin_win", 1)
         self.assertIsNone(self.app.selections["coin_win"])
 
     def test_shortcut_works_when_no_entry_has_focus(self):
-        self.app.root.update()
+        self.app._entry_has_focus = lambda: False
         self.app._shortcut("coin_win", 1)
         self.assertEqual(self.app.selections["coin_win"], 1)
 
@@ -268,6 +268,72 @@ class UITest(unittest.TestCase):
         self.app.notebook.select(3)
         self.app._on_return()
         self.assertEqual(len(self.storage.get_all()), 0)
+
+    def test_update_writes_back_and_refreshes_stats(self):
+        rid = self.storage.insert_duel(1, 1, 1, date=datetime.now().strftime("%Y-%m-%d"))
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.edit_selections["coin_win"] = 0
+        self.app.update_selected()
+        self.assertEqual(self.storage.get_all()[0]["coin_win"], 0)
+        self.assertIn("硬币 0赢/1输", self.app.today_label.cget("text"))
+
+    def test_update_with_invalid_date_keeps_record(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.edit_date.delete(0, "end")
+        self.app.edit_date.insert(0, "10/06/2026")
+        self.app.update_selected()
+        self.assertEqual(
+            self.storage.get_all()[0]["date"], datetime.now().strftime("%Y-%m-%d")
+        )
+        self.assertIn("YYYY-MM-DD", self.app.message_label.cget("text"))
+
+    def test_update_without_selection_does_nothing(self):
+        self.app.update_selected()
+        self.assertEqual(len(self.storage.get_all()), 0)
+
+    def test_update_missing_record_reports_gone(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.storage.delete_duel(rid)  # 模拟选中记录已被外部删除
+        self.app.update_selected()
+        self.assertIn("已不存在", self.app.message_label.cget("text"))
+
+    def test_delete_removes_row_and_clears_panel(self):
+        rid = self.storage.insert_duel(1, 1, 1)
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.delete_selected()
+        self.assertEqual(self.storage.get_all(), [])
+        self.assertIsNone(self.app.selected_id)
+        self.assertEqual(self.app.update_btn.cget("state"), "disabled")
+
+    def test_ctrl_z_undoes_last_record(self):
+        self.storage.insert_duel(1, 1, 1)
+        self.storage.insert_duel(0, 0, 0)
+        self.app.refresh()
+        self.app.root.update()
+        self.app.root.event_generate("<Control-z>")
+        self.assertEqual(len(self.storage.get_all()), 1)
+        self.assertIn("撤销", self.app.message_label.cget("text"))
+
+    def test_filter_resets_when_selected_date_has_no_records(self):
+        rid = self.storage.insert_duel(1, 1, 1, date="2026-10-05")
+        self.app.refresh()
+        self.app.filter_combo.set("2026-10-05")
+        self.app._load_records()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.delete_selected()
+        self.assertEqual(self.app.filter_combo.get(), "全部")
+        self.assertEqual(len(self.app.record_table.get_children()), 0)
 
 
 if __name__ == "__main__":

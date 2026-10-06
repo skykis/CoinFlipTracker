@@ -173,12 +173,23 @@ class TrackerApp:
         self.edit_note.pack(side="left")
         self.edit_date = tk.Entry(self.edit_frame, width=10)
         self.edit_date.pack(side="left")
+        self.update_btn = tk.Button(
+            self.edit_frame, text="更新", command=self.update_selected, state="disabled"
+        )
+        self.update_btn.pack(side="left")
+        self.delete_btn = tk.Button(
+            self.edit_frame, text="删除", command=self.delete_selected, state="disabled"
+        )
+        self.delete_btn.pack(side="left")
+        self.cancel_btn = tk.Button(self.edit_frame, text="取消", command=self.clear_edit)
+        self.cancel_btn.pack(side="left")
         self.selected_id = None
         self._records_by_id = {}
 
         for key, (field, value) in SHORTCUTS.items():
             self.root.bind(key, lambda e, f=field, v=value: self._shortcut(f, v))
         self.root.bind("<Return>", lambda e: self._on_return())
+        self.root.bind("<Control-z>", lambda e: self.undo_last())
 
     def run(self) -> None:
         try:
@@ -218,8 +229,11 @@ class TrackerApp:
     def can_save(self) -> bool:
         return all(v is not None for v in self.selections.values())
 
+    def _entry_has_focus(self) -> bool:
+        return isinstance(self.root.focus_get(), tk.Entry)
+
     def _shortcut(self, field: str, value: int) -> None:
-        if isinstance(self.root.focus_get(), tk.Entry):
+        if self._entry_has_focus():
             return
         self.select(field, value)
 
@@ -306,6 +320,8 @@ class TrackerApp:
             self.edit_note.insert(0, record["note"])
         self.edit_date.delete(0, "end")
         self.edit_date.insert(0, record["date"])
+        self.update_btn.config(state="normal")
+        self.delete_btn.config(state="normal")
 
     def clear_edit(self) -> None:
         self.selected_id = None
@@ -315,6 +331,52 @@ class TrackerApp:
                 btn.config(bg=self._default_bg)
         self.edit_note.delete(0, "end")
         self.edit_date.delete(0, "end")
+        self.update_btn.config(state="disabled")
+        self.delete_btn.config(state="disabled")
+
+    def update_selected(self) -> None:
+        if self.selected_id is None:
+            return
+        if not all(v is not None for v in self.edit_selections.values()):
+            self.show_message("请先选择硬币/先后手/决斗")
+            return
+        try:
+            ok = self.storage.update_duel(
+                self.selected_id,
+                self.edit_selections["coin_win"],
+                self.edit_selections["went_first"],
+                self.edit_selections["duel_win"],
+                self.edit_note.get().strip() or None,
+                self.edit_date.get().strip(),
+            )
+        except ValueError:
+            self.show_message("日期格式应为 YYYY-MM-DD")
+            return
+        except sqlite3.Error as e:
+            self.show_message(f"数据库操作失败：{e}")
+            return
+        if ok:
+            self.show_message(f"已更新记录 #{self.selected_id}")
+            self.refresh()
+            if str(self.selected_id) in self._records_by_id:
+                self.record_table.selection_set(str(self.selected_id))
+        else:
+            self.show_message("该记录已不存在")
+            self.clear_edit()
+            self.refresh()
+
+    def delete_selected(self) -> None:
+        if self.selected_id is None:
+            return
+        removed_id = self.selected_id
+        try:
+            ok = self.storage.delete_duel(removed_id)
+        except sqlite3.Error as e:
+            self.show_message(f"数据库操作失败：{e}")
+            return
+        self.show_message(f"已删除记录 #{removed_id}" if ok else "该记录已不存在")
+        self.clear_edit()
+        self.refresh()
 
     def refresh(self) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
