@@ -29,6 +29,15 @@ CHARTS = (
     ("逐局趋势", draw_per_duel),
 )
 
+COLUMNS = (
+    ("date", "日期", 90),
+    ("time", "时间", 60),
+    ("coin", "硬币", 60),
+    ("first", "先后手", 70),
+    ("duel", "决斗", 60),
+    ("note", "备注", 160),
+)
+
 HIGHLIGHT_BG = "lightyellow"
 
 SHORTCUTS = {
@@ -130,6 +139,43 @@ class TrackerApp:
             )
             self.fallback_label.pack()
 
+        self.list_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.list_tab, text="记录列表")
+
+        filter_frame = tk.Frame(self.list_tab)
+        filter_frame.pack(fill="x", padx=6, pady=6)
+        tk.Label(filter_frame, text="日期筛选").pack(side="left")
+        self.filter_combo = ttk.Combobox(filter_frame, state="readonly", values=["全部"])
+        self.filter_combo.set("全部")
+        self.filter_combo.pack(side="left")
+        self.list_count_label = tk.Label(filter_frame, text="共 0 条")
+        self.list_count_label.pack(side="left", padx=8)
+        self.filter_combo.bind("<<ComboboxSelected>>", lambda e: self._load_records())
+
+        self.record_table = ttk.Treeview(
+            self.list_tab, columns=[c for c, _, _ in COLUMNS], show="headings"
+        )
+        for col, heading, width in COLUMNS:
+            self.record_table.heading(col, text=heading)
+            self.record_table.column(col, width=width)
+        self.record_table.pack(fill="both", padx=6)
+        self.record_table.bind("<<TreeviewSelect>>", lambda e: self._on_row_select())
+
+        self.edit_frame = tk.Frame(self.list_tab)
+        self.edit_frame.pack(fill="x", padx=6, pady=6)
+        self.edit_selections = {"coin_win": None, "went_first": None, "duel_win": None}
+        self._edit_buttons = {}
+        for field, label, choices in OPTIONS:
+            self._edit_buttons[field] = self._make_choice_group(
+                self.edit_frame, field, label, choices, self.edit_selections
+            )
+        self.edit_note = tk.Entry(self.edit_frame, width=20)
+        self.edit_note.pack(side="left")
+        self.edit_date = tk.Entry(self.edit_frame, width=10)
+        self.edit_date.pack(side="left")
+        self.selected_id = None
+        self._records_by_id = {}
+
         for key, (field, value) in SHORTCUTS.items():
             self.root.bind(key, lambda e, f=field, v=value: self._shortcut(f, v))
         self.root.bind("<Return>", lambda e: self._on_return())
@@ -178,6 +224,9 @@ class TrackerApp:
         self.select(field, value)
 
     def _on_return(self) -> None:
+        # ttk.Notebook has no current(); select() with no args returns the raised tab
+        if self.notebook.index(self.notebook.select()) == self.notebook.index(self.list_tab):
+            return
         self.save()
 
     def show_message(self, text: str) -> None:
@@ -222,6 +271,51 @@ class TrackerApp:
         self.refresh()
         return rid
 
+    def _load_records(self) -> None:
+        chosen = self.filter_combo.get()
+        date = None if chosen == "全部" else chosen
+        records = self.storage.get_records(date)
+        self.record_table.delete(*self.record_table.get_children())
+        for r in records:
+            self.record_table.insert(
+                "", "end", iid=str(r["id"]),
+                values=(
+                    r["date"],
+                    r["created_at"][11:16],
+                    "赢" if r["coin_win"] else "输",
+                    "先手" if r["went_first"] else "后手",
+                    "胜" if r["duel_win"] else "负",
+                    r["note"] or "",
+                ),
+            )
+        self._records_by_id = {str(r["id"]): r for r in records}
+        self.list_count_label.config(text=f"共 {len(records)} 条")
+
+    def _on_row_select(self) -> None:
+        selected = self.record_table.selection()
+        if not selected:
+            return
+        record = self._records_by_id.get(selected[0])
+        if record is None:
+            return
+        self.selected_id = record["id"]
+        for field in ("coin_win", "went_first", "duel_win"):
+            self._choose(field, record[field], self.edit_selections, self._edit_buttons[field])
+        self.edit_note.delete(0, "end")
+        if record["note"]:
+            self.edit_note.insert(0, record["note"])
+        self.edit_date.delete(0, "end")
+        self.edit_date.insert(0, record["date"])
+
+    def clear_edit(self) -> None:
+        self.selected_id = None
+        self.edit_selections = {k: None for k in ("coin_win", "went_first", "duel_win")}
+        for buttons in self._edit_buttons.values():
+            for btn in buttons.values():
+                btn.config(bg=self._default_bg)
+        self.edit_note.delete(0, "end")
+        self.edit_date.delete(0, "end")
+
     def refresh(self) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
         all_records = self.storage.get_all()
@@ -243,3 +337,9 @@ class TrackerApp:
                 fig.clear()
                 drawer(fig.subplots(), data)
                 canvas.draw()
+
+        dates = self.storage.get_dates()
+        self.filter_combo["values"] = ["全部"] + dates
+        if self.filter_combo.get() != "全部" and self.filter_combo.get() not in dates:
+            self.filter_combo.set("全部")
+        self._load_records()

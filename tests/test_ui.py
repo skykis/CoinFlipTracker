@@ -219,6 +219,56 @@ class UITest(unittest.TestCase):
         self.assertIn("后手 1", label)
         self.assertIn("最长 1/1", label)
 
+    def test_fourth_tab_is_record_list(self):
+        self.assertEqual(self.app.notebook.tab(3, "text"), "记录列表")
+
+    def test_list_shows_all_records_and_count(self):
+        self.storage.insert_duel(1, 1, 1, note="first")
+        self.storage.insert_duel(0, 0, 0, note="second")
+        self.app.refresh()
+        self.assertEqual(len(self.app.record_table.get_children()), 2)
+        self.assertEqual(self.app.list_count_label.cget("text"), "共 2 条")
+
+    def test_date_filter_limits_rows(self):
+        self.storage.insert_duel(1, 1, 1, date="2026-10-05")
+        self.storage.insert_duel(0, 0, 0, date="2026-10-06")
+        self.app.refresh()
+        self.app.filter_combo.set("2026-10-05")
+        self.app._load_records()
+        children = self.app.record_table.get_children()
+        self.assertEqual(len(children), 1)
+        self.assertEqual(self.app.record_table.item(children[0], "values")[0], "2026-10-05")
+
+    def test_selecting_row_populates_edit_panel(self):
+        rid = self.storage.insert_duel(1, 0, 1, note="oops", date="2026-10-05")
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.assertEqual(self.app.selected_id, rid)
+        self.assertEqual(
+            self.app.edit_selections, {"coin_win": 1, "went_first": 0, "duel_win": 1}
+        )
+        self.assertEqual(self.app.edit_note.get(), "oops")
+        self.assertEqual(self.app.edit_date.get(), "2026-10-05")
+
+    def test_clear_edit_resets_panel(self):
+        rid = self.storage.insert_duel(1, 0, 1, note="oops", date="2026-10-05")
+        self.app.refresh()
+        self.app.record_table.selection_set(str(rid))
+        self.app._on_row_select()
+        self.app.clear_edit()
+        self.assertIsNone(self.app.selected_id)
+        self.assertEqual(self.app.edit_note.get(), "")
+        self.assertEqual(self.app.edit_date.get(), "")
+
+    def test_enter_in_list_tab_does_not_save(self):
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 1)
+        self.app.select("duel_win", 1)
+        self.app.notebook.select(3)
+        self.app._on_return()
+        self.assertEqual(len(self.storage.get_all()), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
