@@ -20,9 +20,13 @@ CREATE INDEX IF NOT EXISTS idx_duels_date ON duels (date);
 class Storage:
     def __init__(self, path):
         self.conn = sqlite3.connect(path)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.executescript(SCHEMA)
+        try:
+            self.conn.row_factory = sqlite3.Row
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.executescript(SCHEMA)
+        except Exception:
+            self.conn.close()
+            raise
 
     def close(self):
         self.conn.close()

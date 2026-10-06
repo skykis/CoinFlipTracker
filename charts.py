@@ -1,4 +1,7 @@
 # charts.py
+from datetime import datetime
+
+import matplotlib.dates as mdates
 from matplotlib.figure import Figure
 
 
@@ -14,7 +17,7 @@ def build_figures(daily_counts):
             ax.axis("off")
         return [rate_fig, counts_fig]
 
-    dates = [d["date"] for d in daily_counts]
+    dates = [datetime.strptime(d["date"], "%Y-%m-%d") for d in daily_counts]
     rates = [d["coin_wins"] / d["total"] * 100 for d in daily_counts]
     totals = [d["total"] for d in daily_counts]
 
@@ -26,5 +29,10 @@ def build_figures(daily_counts):
     counts_ax.bar(dates, totals)
     counts_ax.set_ylabel("Duels")
     counts_ax.set_title("Duels per day")
+
+    for ax in (rate_ax, counts_ax):
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+        ax.tick_params(axis="x", rotation=45)
 
     return [rate_fig, counts_fig]

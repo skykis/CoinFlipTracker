@@ -23,6 +23,18 @@ class ChartsTest(unittest.TestCase):
         for fig in figures:
             self.assertIsInstance(fig, Figure)
 
+    def test_many_days_use_dates_and_rotated_labels(self):
+        daily = [
+            {"date": f"2026-09-{d:02d}", "total": 2, "coin_wins": 1}
+            for d in range(1, 31)
+        ]
+        figures = build_figures(daily)
+        for fig in figures:
+            ax = fig.axes[0]
+            labels = ax.get_xticklabels()
+            self.assertTrue(labels)
+            self.assertEqual(labels[0].get_rotation(), 45)
+
 
 if __name__ == "__main__":
     unittest.main()

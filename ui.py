@@ -28,15 +28,23 @@ SHORTCUTS = {
 }
 
 
-def format_stats(stats, label):
+def format_stats(stats, label, records):
+    def streak_text(n, last_value):
+        if n == 0:
+            return "连串 0"
+        return f"连串 {n}{'赢' if last_value else '输'}"
+
+    coin_dir = records[-1]["coin_win"] if records else 0
+    duel_dir = records[-1]["duel_win"] if records else 0
     return (
         f"{label}: {stats['total']} 局 | "
         f"硬币 {stats['coin_wins']}赢/{stats['coin_losses']}输 "
-        f"({stats['coin_win_rate']:.1%}) 连串 {stats['coin_streak']} "
+        f"({stats['coin_win_rate']:.1%}) {streak_text(stats['coin_streak'], coin_dir)} "
         f"(最长 {stats['coin_longest_win']}/{stats['coin_longest_loss']}) | "
-        f"先手 {stats['first_count']} ({stats['first_share']:.1%}) | "
+        f"先手 {stats['first_count']} ({stats['first_share']:.1%}) / 后手 {stats['second_count']} | "
         f"决斗 {stats['duel_wins']}胜/{stats['duel_losses']}负 "
-        f"({stats['duel_win_rate']:.1%}) 连串 {stats['duel_streak']}"
+        f"({stats['duel_win_rate']:.1%}) {streak_text(stats['duel_streak'], duel_dir)} "
+        f"(最长 {stats['duel_longest_win']}/{stats['duel_longest_loss']})"
     )
 
 
@@ -68,6 +76,8 @@ class TrackerApp:
                 buttons[value] = btn
             self._buttons[field] = buttons
 
+        self.note_entry = tk.Entry(input_frame, width=20)
+        self.note_entry.pack(side="right")
         self.save_btn = tk.Button(input_frame, text="保存 (Enter)", state="disabled")
         self.save_btn.pack(side="right")
 
@@ -114,6 +124,7 @@ class TrackerApp:
             self.selections["coin_win"],
             self.selections["went_first"],
             self.selections["duel_win"],
+            note=self.note_entry.get().strip() or None,
         )
         self.selections = {k: None for k in self.selections}
         for buttons in self._buttons.values():
@@ -127,8 +138,12 @@ class TrackerApp:
         today = datetime.now().strftime("%Y-%m-%d")
         all_records = self.storage.get_all()
         today_records = self.storage.get_by_date(today)
-        self.today_label.config(text=format_stats(compute_stats(today_records), "当天"))
-        self.total_label.config(text=format_stats(compute_stats(all_records), "累计"))
+        self.today_label.config(
+            text=format_stats(compute_stats(today_records), "当天", today_records)
+        )
+        self.total_label.config(
+            text=format_stats(compute_stats(all_records), "累计", all_records)
+        )
         if MATPLOTLIB_OK:
             figures = build_figures(self.storage.get_daily_counts())
             for canvas, fig in zip(self.canvases, figures):
