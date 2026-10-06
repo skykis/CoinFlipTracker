@@ -26,7 +26,7 @@ def main():
 
     app = TrackerApp(storage)
     try:
-        app.root.mainloop()
+        app.run()
     finally:
         storage.close()
 

@@ -1,7 +1,9 @@
 # tests/test_storage.py
 import os
+import sqlite3
 import tempfile
 import unittest
+from datetime import datetime
 
 from storage import Storage
 
@@ -28,7 +30,15 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(recs[0]["went_first"], 0)
         self.assertEqual(recs[0]["duel_win"], 1)
         self.assertEqual(recs[0]["note"], "test")
-        self.assertTrue(recs[0]["date"])
+        self.assertEqual(recs[0]["date"], datetime.now().strftime("%Y-%m-%d"))
+
+    def test_insert_rejects_invalid_flag_values(self):
+        s = Storage(self.db_path)
+        try:
+            with self.assertRaises(sqlite3.IntegrityError):
+                s.insert_duel(2, 1, 1)
+        finally:
+            s.close()
 
     def test_get_by_date_filters(self):
         s = Storage(self.db_path)

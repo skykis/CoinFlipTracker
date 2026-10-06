@@ -13,6 +13,12 @@ class ChartsTest(unittest.TestCase):
         for fig in figures:
             self.assertIsInstance(fig, Figure)
 
+    def test_empty_placeholder_text_is_chinese(self):
+        figures = build_figures([])
+        for fig in figures:
+            texts = [t.get_text() for t in fig.axes[0].texts]
+            self.assertIn("暂无数据", texts)
+
     def test_with_data_returns_figures(self):
         daily = [
             {"date": "2026-10-05", "total": 3, "coin_wins": 2},

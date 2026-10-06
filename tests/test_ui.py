@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import tkinter as tk
 
+import ui
 from storage import Storage
 from ui import TrackerApp
 
@@ -16,8 +17,11 @@ class UITest(unittest.TestCase):
         self.app = TrackerApp(self.storage, root=self.root)
 
     def tearDown(self):
-        self.root.destroy()
         self.storage.close()
+        try:
+            self.root.destroy()
+        except tk.TclError:
+            pass  # already destroyed by run()
         self.tmp.cleanup()
 
     def test_incomplete_input_not_saved(self):
@@ -50,6 +54,57 @@ class UITest(unittest.TestCase):
         self.assertIsNotNone(rid)
         rec = self.storage.get_all()[0]
         self.assertEqual(rec["note"], "vs red deck")
+
+    def test_buttons_reset_to_platform_default_background_after_save(self):
+        fresh = tk.Button(self.root)
+        default_bg = fresh.cget("bg")
+        fresh.destroy()
+        self.app.select("coin_win", 1)
+        self.app.select("went_first", 1)
+        self.app.select("duel_win", 1)
+        self.app.save()
+        for buttons in self.app._buttons.values():
+            for btn in buttons.values():
+                self.assertEqual(btn.cget("bg"), default_bg)
+
+    def test_matplotlib_missing_shows_fallback_tab(self):
+        original = ui.MATPLOTLIB_OK
+        ui.MATPLOTLIB_OK = False
+        try:
+            root = tk.Tk()
+            try:
+                app = TrackerApp(self.storage, root=root)
+                self.assertEqual(app.notebook.tab(0, "text"), "图表")
+                self.assertFalse(hasattr(app, "canvases"))
+                self.assertIn("matplotlib", app.fallback_label.cget("text"))
+            finally:
+                root.destroy()
+        finally:
+            ui.MATPLOTLIB_OK = original
+
+    def test_run_survives_window_closed_by_user(self):
+        original = tk.Tk.mainloop
+        def fake_mainloop(root):
+            root.destroy()  # user closes the window: Tk tears down the app
+        tk.Tk.mainloop = fake_mainloop
+        try:
+            self.app.run()
+        finally:
+            tk.Tk.mainloop = original
+
+    def test_run_destroys_root_when_mainloop_ends(self):
+        original = tk.Tk.mainloop
+        tk.Tk.mainloop = lambda self: None
+        try:
+            self.app.run()
+        finally:
+            tk.Tk.mainloop = original
+        try:
+            self.app.root.winfo_exists()
+        except tk.TclError:
+            pass  # root destroyed
+        else:
+            self.fail("Tk root still alive after run()")
 
     def test_stats_display_streak_direction_and_all_fields(self):
         # coin: win, win -> streak 2 wins; duel: win, loss -> streak 1 loss

@@ -4,6 +4,7 @@ from tkinter import ttk
 from datetime import datetime
 
 from stats import compute_stats
+from storage import Storage
 
 try:
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -18,6 +19,8 @@ OPTIONS = [
     ("duel_win", "决斗", [("胜", 1), ("负", 0)]),
 ]
 
+HIGHLIGHT_BG = "lightyellow"
+
 SHORTCUTS = {
     "1": ("coin_win", 1),
     "2": ("coin_win", 0),
@@ -28,8 +31,8 @@ SHORTCUTS = {
 }
 
 
-def format_stats(stats, label, records):
-    def streak_text(n, last_value):
+def format_stats(stats: dict, label: str, records: list[dict]) -> str:
+    def streak_text(n: int, last_value: int) -> str:
         if n == 0:
             return "连串 0"
         return f"连串 {n}{'赢' if last_value else '输'}"
@@ -49,16 +52,17 @@ def format_stats(stats, label, records):
 
 
 class TrackerApp:
-    def __init__(self, storage, root=None):
+    def __init__(self, storage: Storage, root: tk.Tk | None = None):
         self.storage = storage
         self.root = root if root is not None else tk.Tk()
         self.root.title("CoinFlipTracker")
         self.selections = {"coin_win": None, "went_first": None, "duel_win": None}
         self._buttons = {}
+        self._default_bg = ""
         self._build_ui()
         self.refresh()
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         input_frame = tk.Frame(self.root)
         input_frame.pack(fill="x", padx=10, pady=10)
 
@@ -73,6 +77,7 @@ class TrackerApp:
                     command=lambda f=field, v=value: self.select(f, v),
                 )
                 btn.pack(side="left")
+                self._default_bg = btn.cget("bg")
                 buttons[value] = btn
             self._buttons[field] = buttons
 
@@ -102,22 +107,34 @@ class TrackerApp:
         else:
             tab = tk.Frame(self.notebook)
             self.notebook.add(tab, text="图表")
-            tk.Label(tab, text="matplotlib 未安装，图表不可用（pip install matplotlib）").pack()
+            self.fallback_label = tk.Label(
+                tab, text="matplotlib 未安装，图表不可用（pip install matplotlib）"
+            )
+            self.fallback_label.pack()
 
         for key, (field, value) in SHORTCUTS.items():
             self.root.bind(key, lambda e, f=field, v=value: self.select(f, v))
         self.root.bind("<Return>", lambda e: self.save())
 
-    def select(self, field, value):
+    def run(self) -> None:
+        try:
+            self.root.mainloop()
+        finally:
+            try:
+                self.root.destroy()
+            except tk.TclError:
+                pass  # window was already closed by the user
+
+    def select(self, field: str, value: int) -> None:
         self.selections[field] = value
         for v, btn in self._buttons[field].items():
-            btn.config(bg="lightyellow" if v == value else "systemButtonFace")
+            btn.config(bg=HIGHLIGHT_BG if v == value else self._default_bg)
         self.save_btn.config(state="normal" if self.can_save() else "disabled")
 
-    def can_save(self):
+    def can_save(self) -> bool:
         return all(v is not None for v in self.selections.values())
 
-    def save(self):
+    def save(self) -> int | None:
         if not self.can_save():
             return None
         rid = self.storage.insert_duel(
@@ -129,12 +146,12 @@ class TrackerApp:
         self.selections = {k: None for k in self.selections}
         for buttons in self._buttons.values():
             for btn in buttons.values():
-                btn.config(bg="systemButtonFace")
+                btn.config(bg=self._default_bg)
         self.save_btn.config(state="disabled")
         self.refresh()
         return rid
 
-    def refresh(self):
+    def refresh(self) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
         all_records = self.storage.get_all()
         today_records = self.storage.get_by_date(today)

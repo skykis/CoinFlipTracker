@@ -1,5 +1,5 @@
 # stats.py
-def current_streak(records, field):
+def current_streak(records: list[dict], field: str) -> int:
     if not records:
         return 0
     streak = 1
@@ -12,7 +12,7 @@ def current_streak(records, field):
     return streak
 
 
-def longest_streak(records, field, value):
+def longest_streak(records: list[dict], field: str, value: int) -> int:
     best = 0
     run = 0
     for r in records:
@@ -24,7 +24,7 @@ def longest_streak(records, field, value):
     return best
 
 
-def compute_stats(records):
+def compute_stats(records: list[dict]) -> dict:
     total = len(records)
     coin_wins = sum(r["coin_win"] for r in records)
     first_count = sum(r["went_first"] for r in records)
